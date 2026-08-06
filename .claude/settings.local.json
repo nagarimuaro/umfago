@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gofmt -l ./internal)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+# Rahasia dan konfigurasi lokal.
+# .env berisi DATABASE_URL, JWT_SECRET, dan MIDTRANS_SERVER_KEY yang sungguhan.
+# .env.example sengaja dikecualikan karena isinya hanya nama kunci tanpa nilai.
+.env
+.env.*
+!.env.example
+
+# Berkas yang diunggah pengguna (foto produk, dokumen KYC).
+# Ditulis server ke UPLOAD_DIR, bukan bagian dari kode.
+uploads/
+
+# Keluaran tooling Go
+coverage
+coverage.out
+*.test
+openjek-backend
+openjek-backend.exe
+
+# React Native / Node
+node_modules/
+mobile/node_modules/
+npm-debug.log*
+yarn-error.log*
+.metro-health-check*
+
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+*.apk
+*.aab
+
+# Kunci penandatanganan rilis. debug.keystore boleh masuk karena sama untuk
+# semua orang dan tidak menandatangani apa pun yang dirilis.
+*.keystore
+*.jks
+!debug.keystore
+
+# Editor dan sistem operasi
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
