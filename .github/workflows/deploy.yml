@@ -130,9 +130,18 @@ jobs:
             echo "[3/5] Memastikan permissions berkas..."
             sudo chown -R www-data:www-data $TARGET_DIR
 
-            echo "[4/5] Memperbarui dan merestart service backend..."
+            echo "[4/5] Memperbarui service backend & Nginx virtual host..."
+            if [ -f "$TARGET_DIR/deploy/nginx-umfa-core.conf" ]; then
+              sudo cp "$TARGET_DIR/deploy/nginx-umfa-core.conf" /etc/nginx/sites-available/
+              sudo ln -sf /etc/nginx/sites-available/nginx-umfa-core.conf /etc/nginx/sites-enabled/
+            fi
+            if [ -f "$TARGET_DIR/deploy/nginx-umfa-admin.conf" ]; then
+              sudo cp "$TARGET_DIR/deploy/nginx-umfa-admin.conf" /etc/nginx/sites-available/
+              sudo ln -sf /etc/nginx/sites-available/nginx-umfa-admin.conf /etc/nginx/sites-enabled/
+            fi
+
             if [ -f "$TARGET_DIR/deploy/umfago-backend.service" ]; then
-              sudo cp $TARGET_DIR/deploy/umfago-backend.service /etc/systemd/system/
+              sudo cp "$TARGET_DIR/deploy/umfago-backend.service" /etc/systemd/system/
               sudo systemctl daemon-reload
               sudo systemctl enable umfago-backend
             fi
