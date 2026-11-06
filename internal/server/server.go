@@ -203,6 +203,14 @@ func NewServer() *Server {
 		})
 	})
 
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"app":     "UmfaGo API",
+			"status":  "running",
+			"version": "1.0.0",
+		})
+	})
+
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
