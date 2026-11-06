@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"openjek-backend/internal/models"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -77,6 +80,60 @@ func SeedRolesAndPermissions(db *gorm.DB) {
 	// 3. Backfill: pastikan setiap user punya baris user_roles untuk role aktifnya.
 	// Diperlukan agar akun yang dibuat sebelum skema multi-role tetap bisa login.
 	backfillUserRoles(db)
+}
+
+// SeedAdminAccount — buat atau pastikan akun Super Admin ada bila ADMIN_EMAIL
+// dan ADMIN_PASSWORD disetel di environment. Idempoten.
+func SeedAdminAccount(db *gorm.DB) {
+	email := strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))
+	pass := os.Getenv("ADMIN_PASSWORD")
+	name := strings.TrimSpace(os.Getenv("ADMIN_NAME"))
+	if email == "" || pass == "" {
+		return
+	}
+	if name == "" {
+		name = "Super Admin"
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("[Seed] Failed to hash ADMIN_PASSWORD: %v", err)
+		return
+	}
+
+	var user models.User
+	err = db.Where("email = ?", email).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		user = models.User{
+			Name:       name,
+			Email:      email,
+			Phone:      "080000000000",
+			Password:   string(hashed),
+			RoleCode:   models.RoleSuperAdmin,
+			IsActive:   true,
+			IsVerified: true,
+		}
+		if err := db.Create(&user).Error; err != nil {
+			log.Printf("[Seed] Failed to create admin account %s: %v", email, err)
+			return
+		}
+	} else if err == nil {
+		db.Model(&user).Updates(map[string]interface{}{
+			"password":  string(hashed),
+			"role_code": models.RoleSuperAdmin,
+			"is_active": true,
+		})
+	} else {
+		return
+	}
+
+	roleRepo := NewRoleRepository(db)
+	for _, entry := range models.SeedRoles {
+		if entry.Role.Group == models.RoleGroupAdmin {
+			_ = roleRepo.AssignRole(user.ID, entry.Role.Code)
+		}
+	}
+	log.Printf("[Seed] Admin account ready: %s (all admin roles assigned)", email)
 }
 
 // backfillUserRoles — tambahkan role aktif setiap user ke pivot user_roles bila belum ada

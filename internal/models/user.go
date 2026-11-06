@@ -13,6 +13,13 @@ type User struct {
 	Phone    string `json:"phone" gorm:"uniqueIndex"`
 	Password string `json:"-" gorm:"not null"`
 
+	// Data identitas & profil lengkap pengguna
+	Gender           string `json:"gender" gorm:"type:varchar(20)"`             // Laki-laki, Perempuan
+	BirthDate        string `json:"birth_date" gorm:"type:varchar(20)"`         // YYYY-MM-DD
+	Address          string `json:"address" gorm:"type:text"`                   // Alamat domisili
+	IdentityNumber   string `json:"identity_number" gorm:"type:varchar(50)"`    // NIK KTP
+	EmergencyContact string `json:"emergency_contact" gorm:"type:varchar(100)"` // Kontak darurat
+
 	// RoleCode adalah role yang sedang AKTIF dipakai user saat ini. Nilainya harus
 	// selalu salah satu dari Roles. Semua pengecekan otorisasi memakai role aktif ini
 	// (satu peran pada satu waktu), bukan gabungan seluruh role yang dimiliki.

@@ -15,12 +15,18 @@ type LocationRepository struct {
 }
 
 func NewLocationRepository(rdb *redis.Client) *LocationRepository {
+	if rdb == nil {
+		return nil
+	}
 	return &LocationRepository{rdb: rdb}
 }
 
 // UpdateDriverLocation — simpan/update posisi driver ke Redis GEOADD
 // Dipanggil setiap kali driver mengirim "location_update" via WebSocket
 func (r *LocationRepository) UpdateDriverLocation(ctx context.Context, driverID uint, lat, lon float64) error {
+	if r == nil || r.rdb == nil {
+		return nil
+	}
 	return r.rdb.GeoAdd(ctx, driverGeoKey, &redis.GeoLocation{
 		Name:      strconv.FormatUint(uint64(driverID), 10),
 		Longitude: lon,
@@ -32,6 +38,9 @@ func (r *LocationRepository) UpdateDriverLocation(ctx context.Context, driverID 
 // Menggunakan GEOSEARCH (pengganti GEORADIUS yang sudah deprecated).
 // Parameter count membatasi jumlah kandidat yang dikembalikan.
 func (r *LocationRepository) FindNearestDrivers(ctx context.Context, lat, lon float64, radiusKm float64, count int) ([]uint, error) {
+	if r == nil || r.rdb == nil {
+		return nil, nil
+	}
 	if count <= 0 {
 		count = 10
 	}
@@ -58,7 +67,32 @@ func (r *LocationRepository) FindNearestDrivers(ctx context.Context, lat, lon fl
 	return driverIDs, nil
 }
 
+// GetLiveDrivers — kembalikan koordinat semua driver yang ada di indeks Redis GEO.
+func (r *LocationRepository) GetLiveDrivers(ctx context.Context, ids []uint) map[uint][2]float64 {
+	coords := make(map[uint][2]float64, len(ids))
+	if r == nil || r.rdb == nil || len(ids) == 0 {
+		return coords
+	}
+	members := make([]string, 0, len(ids))
+	for _, id := range ids {
+		members = append(members, strconv.FormatUint(uint64(id), 10))
+	}
+	positions, err := r.rdb.GeoPos(ctx, driverGeoKey, members...).Result()
+	if err != nil {
+		return coords
+	}
+	for i, pos := range positions {
+		if pos != nil && i < len(ids) {
+			coords[ids[i]] = [2]float64{pos.Latitude, pos.Longitude}
+		}
+	}
+	return coords
+}
+
 // RemoveDriver — hapus driver dari set aktif (saat offline)
 func (r *LocationRepository) RemoveDriver(ctx context.Context, driverID uint) error {
+	if r == nil || r.rdb == nil {
+		return nil
+	}
 	return r.rdb.ZRem(ctx, driverGeoKey, strconv.FormatUint(uint64(driverID), 10)).Err()
 }

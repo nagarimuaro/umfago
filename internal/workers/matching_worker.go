@@ -26,11 +26,16 @@ type OrderCreatedPayload struct {
 	VehicleType    string  `json:"vehicle_type"`
 }
 
+// DriverLocator — abstraksi untuk mencari driver terdekat (diimplementasikan oleh *repository.LocationRepository)
+type DriverLocator interface {
+	FindNearestDrivers(ctx context.Context, lat, lon float64, radiusKm float64, count int) ([]uint, error)
+}
+
 // MatchingWorker — mendengarkan event "order.created" dan mencari driver terdekat
 type MatchingWorker struct {
 	db      *gorm.DB
 	rmq     *broker.RabbitMQ
-	locRepo *repository.LocationRepository
+	locRepo DriverLocator
 	pricing *pricing.Calculator
 	hub     *ws.Hub
 	notif   *repository.NotificationRepository
@@ -39,7 +44,7 @@ type MatchingWorker struct {
 func NewMatchingWorker(
 	db *gorm.DB,
 	rmq *broker.RabbitMQ,
-	locRepo *repository.LocationRepository,
+	locRepo DriverLocator,
 	calc *pricing.Calculator,
 	hub *ws.Hub,
 	notif *repository.NotificationRepository,
@@ -56,8 +61,8 @@ func NewMatchingWorker(
 
 // Start — mulai mendengarkan event dari RabbitMQ
 func (w *MatchingWorker) Start() error {
-	if w.rmq == nil {
-		log.Println("[MatchingWorker] RabbitMQ unavailable, matching worker not started")
+	if w.rmq == nil || w.locRepo == nil {
+		log.Println("[MatchingWorker] RabbitMQ or Redis unavailable, matching worker not started")
 		return nil
 	}
 	return w.rmq.Subscribe("matching_queue", string(broker.EventOrderCreated), w.handleOrderCreated)
@@ -81,10 +86,20 @@ func (w *MatchingWorker) handleOrderCreated(event broker.Event) {
 func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPayload) {
 	log.Printf("[MatchingWorker] Processing order %s for rider %d", payload.OrderUUID, payload.RiderID)
 
-	// Radius dan jumlah kandidat dibaca dari setting dinamis, sehingga tim
-	// operasional bisa memperlebar pencarian saat driver sedang sepi.
-	radius := w.pricing.SearchRadiusKm(ctx)
-	maxCandidates := w.pricing.MaxDriverCandidates(ctx)
+	if w.locRepo == nil {
+		log.Printf("[MatchingWorker] Location repository unavailable")
+		return
+	}
+
+	radius := 5.0
+	maxCandidates := 10
+	offerTimeout := 30 * time.Second
+
+	if w.pricing != nil {
+		radius = w.pricing.SearchRadiusKm(ctx)
+		maxCandidates = w.pricing.MaxDriverCandidates(ctx)
+		offerTimeout = w.pricing.OfferTimeout(ctx)
+	}
 
 	// 1. Cari driver terdekat dari titik pickup menggunakan Redis GEOSEARCH.
 	// Diambil lebih banyak dari yang dibutuhkan karena sebagian akan tersaring
@@ -98,11 +113,27 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 	candidates := w.filterEligible(w.excludeOffered(payload.OrderUUID, nearby), payload.VehicleType, maxCandidates)
 
 	if len(candidates) == 0 {
+		// Jika masih ada tawaran aktif yang belum dijawab untuk order ini,
+		// jangan buru-buru kirim no_drivers_available ke rider!
+		var activeOffersCount int64
+		if w.db != nil {
+			w.db.Model(&models.OrderOffer{}).
+				Where("order_uuid = ? AND status = ? AND expires_at > ?", payload.OrderUUID, models.OfferOffered, time.Now()).
+				Count(&activeOffersCount)
+		}
+		if activeOffersCount > 0 {
+			log.Printf("[MatchingWorker] No new candidates, but %d active offer(s) still pending for order %s",
+				activeOffersCount, payload.OrderUUID)
+			return
+		}
+
 		log.Printf("[MatchingWorker] No eligible drivers near order %s", payload.OrderUUID)
-		w.hub.SendToUser(payload.RiderID, ws.Message{
-			Type:    "no_drivers_available",
-			Payload: json.RawMessage(`{"order_uuid":"` + payload.OrderUUID + `"}`),
-		})
+		if w.hub != nil {
+			w.hub.SendToUser(payload.RiderID, ws.Message{
+				Type:    "no_drivers_available",
+				Payload: json.RawMessage(`{"order_uuid":"` + payload.OrderUUID + `"}`),
+			})
+		}
 		if w.notif != nil {
 			w.notif.Push(payload.RiderID, models.NotifNoDriverAvailable,
 				"Belum ada driver",
@@ -115,7 +146,7 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 	// 2. Catat tawaran sebelum dikirim. Driver hanya boleh menolak sesuatu yang
 	// tercatat pernah ditawarkan kepadanya, dan tawaran yang tidak tercatat
 	// tidak akan pernah kedaluwarsa.
-	expiresAt := time.Now().Add(w.pricing.OfferTimeout(ctx))
+	expiresAt := time.Now().Add(offerTimeout)
 	candidates = w.recordOffers(payload.OrderUUID, candidates, expiresAt)
 	if len(candidates) == 0 {
 		log.Printf("[MatchingWorker] No offers recorded for order %s", payload.OrderUUID)
@@ -140,11 +171,13 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 		return
 	}
 
-	for _, driverID := range candidates {
-		w.hub.SendToUser(driverID, ws.Message{
-			Type:    "incoming_order",
-			Payload: json.RawMessage(offerPayload),
-		})
+	if w.hub != nil {
+		for _, driverID := range candidates {
+			w.hub.SendToUser(driverID, ws.Message{
+				Type:    "incoming_order",
+				Payload: json.RawMessage(offerPayload),
+			})
+		}
 	}
 }
 

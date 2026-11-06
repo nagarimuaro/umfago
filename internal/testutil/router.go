@@ -89,6 +89,7 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 	adminUserHandler := handlers.NewAdminUserHandler(db, roleRepo)
 	promoHandler := handlers.NewPromoHandler(db)
 	reportHandler := handlers.NewReportHandler(db)
+	enterpriseHandler := handlers.NewEnterpriseHandler(db, nil)
 
 	// Public
 	public := r.Group("/api")
@@ -117,6 +118,8 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		// Order Routes
 		protected.GET("/orders", orderHandler.GetOrderHistory)
 		protected.POST("/orders", orderHandler.CreateOrder)
+		protected.GET("/orders/:uuid", orderHandler.GetOrderByUUID)
+		protected.PUT("/orders/:uuid/cancel", orderHandler.CancelOrder)
 		protected.PUT("/orders/:uuid/accept", middleware.RequireDriver(), orderHandler.AcceptOrder)
 		protected.PUT("/orders/:uuid/reject", middleware.RequireDriver(), orderHandler.RejectOrder)
 		protected.PUT("/orders/:uuid/status", middleware.RequireDriver(), orderHandler.UpdateOrderStatus)
@@ -341,6 +344,96 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		admin.GET("/reports/top-drivers",
 			middleware.RequirePermission(db, models.PermReportsView),
 			reportHandler.TopDrivers,
+		)
+
+		// ── Enterprise Extensions ─────────────────────────────
+		admin.GET("/map/live-drivers",
+			middleware.RequirePermission(db, models.PermDriversView),
+			enterpriseHandler.LiveDrivers,
+		)
+		admin.GET("/cities",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListCities,
+		)
+		admin.POST("/cities",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.CreateCity,
+		)
+		admin.PUT("/cities/:id",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.UpdateCity,
+		)
+		admin.GET("/branches",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListBranches,
+		)
+		admin.POST("/branches",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.CreateBranch,
+		)
+		admin.GET("/zones",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListZones,
+		)
+		admin.POST("/zones",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.CreateZone,
+		)
+		admin.DELETE("/zones/:id",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.DeleteZone,
+		)
+		admin.GET("/services",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListServices,
+		)
+		admin.PUT("/services/:id",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.UpdateService,
+		)
+		admin.GET("/fleet",
+			middleware.RequirePermission(db, models.PermDriversView),
+			enterpriseHandler.ListFleet,
+		)
+		admin.GET("/support/tickets",
+			middleware.RequirePermission(db, models.PermOrdersView),
+			enterpriseHandler.ListTickets,
+		)
+		admin.PUT("/support/tickets/:id",
+			middleware.RequirePermission(db, models.PermOrdersView),
+			enterpriseHandler.UpdateTicket,
+		)
+		admin.GET("/risk/cases",
+			middleware.RequirePermission(db, models.PermOrdersView),
+			enterpriseHandler.ListRiskCases,
+		)
+		admin.PUT("/risk/cases/:id",
+			middleware.RequirePermission(db, models.PermOrdersView),
+			enterpriseHandler.UpdateRiskCase,
+		)
+		admin.GET("/approvals",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListApprovals,
+		)
+		admin.PUT("/approvals/:id",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.DecideApproval,
+		)
+		admin.GET("/audit-logs",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListAuditLogs,
+		)
+		admin.GET("/feature-flags",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.ListFeatureFlags,
+		)
+		admin.PUT("/feature-flags/:key",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.UpdateFeatureFlag,
+		)
+		admin.GET("/system/health",
+			middleware.RequirePermission(db, models.PermSettingsManage),
+			enterpriseHandler.SystemHealth,
 		)
 	}
 

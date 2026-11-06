@@ -88,6 +88,7 @@ func (h *FareHandler) Estimate(c *gin.Context) {
 		"min_distance_km":      quote.MinDistanceKm,
 		"min_distance_applied": quote.MinDistanceApplied,
 		"per_km_price":         quote.PerKmPrice,
+		"total":                quote.Total,
 		"estimated_fare":       quote.Total,
 		"min_fare":             quote.MinFare,
 		"customer_fee":         quote.CustomerFee,

@@ -301,8 +301,8 @@ func TestPromoValidate_RequiresAuthentication(t *testing.T) {
 
 // ── Promo pada pembuatan order ──────────────────────────────────────────────
 
-// Tarif jarak pendek jatuh ke tarif minimum 10000; promo 3000 memotongnya
-// menjadi 7000, dan saldo terdebit sebesar itu pula.
+// Tarif jarak pendek jatuh ke tarif minimum 3 km x 3000 = 9000; promo 3000
+// memotongnya menjadi 6000, dan saldo terdebit sebesar itu pula.
 func TestCreateOrder_WithPromoReducesFareAndBalance(t *testing.T) {
 	f := newPromoFixture(t)
 	promo := f.seedPromo(t, nil)
@@ -318,8 +318,8 @@ func TestCreateOrder_WithPromoReducesFareAndBalance(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected order in response, got %v", body)
 	}
-	if order["fare_amount"] != 7000.0 {
-		t.Errorf("expected fare_amount 7000, got %v", order["fare_amount"])
+	if order["fare_amount"] != 6000.0 {
+		t.Errorf("expected fare_amount 6000, got %v", order["fare_amount"])
 	}
 	if order["promo_discount"] != 3000.0 {
 		t.Errorf("expected promo_discount 3000, got %v", order["promo_discount"])
@@ -332,12 +332,12 @@ func TestCreateOrder_WithPromoReducesFareAndBalance(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected promo block in response, got %v", body)
 	}
-	if promoBlock["discount_amount"] != 3000.0 || promoBlock["final_fare"] != 7000.0 {
+	if promoBlock["discount_amount"] != 3000.0 || promoBlock["final_fare"] != 6000.0 {
 		t.Errorf("unexpected promo block: %v", promoBlock)
 	}
 
-	if after := f.balance(t); before-after != 7000 {
-		t.Errorf("expected balance to drop by 7000, dropped by %v", before-after)
+	if after := f.balance(t); before-after != 6000 {
+		t.Errorf("expected balance to drop by 6000, dropped by %v", before-after)
 	}
 
 	if got := f.usedCount(t, promo.ID); got != 1 {
@@ -469,8 +469,8 @@ func TestCreateOrder_WithoutPromoIsUnchanged(t *testing.T) {
 	}
 
 	order := body["order"].(map[string]interface{})
-	if order["fare_amount"] != 10000.0 {
-		t.Errorf("expected the full minimum fare 10000, got %v", order["fare_amount"])
+	if order["fare_amount"] != 9000.0 {
+		t.Errorf("expected the full minimum fare 9000, got %v", order["fare_amount"])
 	}
 	if order["promo_discount"] != 0.0 {
 		t.Errorf("expected no discount, got %v", order["promo_discount"])
@@ -478,7 +478,7 @@ func TestCreateOrder_WithoutPromoIsUnchanged(t *testing.T) {
 	if _, ok := body["promo"]; ok {
 		t.Errorf("expected no promo block for an order without a code, got %v", body["promo"])
 	}
-	if after := f.balance(t); before-after != 10000 {
+	if after := f.balance(t); before-after != 9000 {
 		t.Errorf("expected balance to drop by the full fare, dropped by %v", before-after)
 	}
 }

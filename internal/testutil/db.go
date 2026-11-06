@@ -103,6 +103,15 @@ func NewTestDB(t testing.TB) *gorm.DB {
 		&models.Notification{},
 		&models.Product{},
 		&models.ProductEvent{},
+		&models.ServiceCatalog{},
+		&models.City{},
+		&models.Branch{},
+		&models.GeoZone{},
+		&models.SupportTicket{},
+		&models.RiskCase{},
+		&models.ApprovalRequest{},
+		&models.AuditLog{},
+		&models.FeatureFlag{},
 	)
 	if err != nil {
 		t.Fatal("AutoMigrate error:", err)
@@ -110,6 +119,10 @@ func NewTestDB(t testing.TB) *gorm.DB {
 
 	// Seed roles dan permissions secara lengkap
 	repository.SeedRolesAndPermissions(db)
+	// Semai dynamic_settings seperti server start, supaya test yang mengubah
+	// setting lewat UPDATE benar-benar mengenai baris.
+	repository.NewSettingsRepository(db, nil).Seed()
+	repository.SeedEnterpriseDefaults(db)
 
 	log.Println("[TestDB] Ready")
 	return db
@@ -171,6 +184,15 @@ func lockTestDatabase(t testing.TB, dsn string) {
 
 func cleanupTables(db *gorm.DB) {
 	db.Migrator().DropTable(
+		&models.FeatureFlag{},
+		&models.AuditLog{},
+		&models.ApprovalRequest{},
+		&models.RiskCase{},
+		&models.SupportTicket{},
+		&models.GeoZone{},
+		&models.Branch{},
+		&models.City{},
+		&models.ServiceCatalog{},
 		&models.ProductEvent{},
 		&models.Product{},
 		&models.Notification{},

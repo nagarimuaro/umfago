@@ -20,7 +20,7 @@ import (
 // hanya melihat-lihat. Rating diberi porsi terkecil karena produk yang baru
 // dijual belum sempat mengumpulkannya.
 const (
-	rankWindowDays = 30
+	rankWindowDays   = 30
 	rankWeightOrder  = 0.5
 	rankWeightView   = 0.3
 	rankWeightRating = 0.2
@@ -29,7 +29,7 @@ const (
 	// baru. Tanpa kuota ini, daftar yang diurutkan murni oleh popularitas
 	// mengunci pendatang di halaman belakang selamanya — produk sepi tidak
 	// pernah terlihat, jadi tidak pernah laku, jadi tetap sepi.
-	rankPageSlots       = 20
+	rankPageSlots        = 20
 	rankExplorationSlots = 6
 
 	// Ambang "sepi" dan "baru". Produk yang memenuhi salah satunya berhak atas
@@ -55,12 +55,12 @@ func NewProductHandler(db *gorm.DB) *ProductHandler {
 // rankedProduct — satu produk beserta angka jendela 30 hari dan skornya.
 type rankedProduct struct {
 	models.Product
-	MerchantName   string  `gorm:"column:merchant_name" json:"merchant_name"`
-	MerchantOpen   bool    `gorm:"column:merchant_open" json:"merchant_open"`
-	ViewCount30d   int64   `gorm:"column:view_30d" json:"view_count_30d"`
-	OrderCount30d  int64   `gorm:"column:order_30d" json:"order_count_30d"`
-	Score          float64 `gorm:"-" json:"score"`
-	IsExploration  bool    `gorm:"-" json:"is_exploration"`
+	MerchantName  string  `gorm:"column:merchant_name" json:"merchant_name"`
+	MerchantOpen  bool    `gorm:"column:merchant_open" json:"merchant_open"`
+	ViewCount30d  int64   `gorm:"column:view_30d" json:"view_count_30d"`
+	OrderCount30d int64   `gorm:"column:order_30d" json:"order_count_30d"`
+	Score         float64 `gorm:"-" json:"score"`
+	IsExploration bool    `gorm:"-" json:"is_exploration"`
 }
 
 // List — GET /api/products

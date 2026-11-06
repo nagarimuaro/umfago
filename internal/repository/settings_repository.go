@@ -124,6 +124,16 @@ func (r *SettingsRepository) Seed() {
 	r.refreshCache(ctx)
 }
 
+// ListRecords — ambil semua baris setting lengkap beserta metadata (type, group,
+// description) untuk halaman pengaturan Admin Dashboard.
+func (r *SettingsRepository) ListRecords(ctx context.Context) ([]models.DynamicSetting, error) {
+	var records []models.DynamicSetting
+	if err := r.db.WithContext(ctx).Order("key asc").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func (r *SettingsRepository) refreshCache(ctx context.Context) (map[string]string, error) {
 	var records []models.DynamicSetting
 	if err := r.db.WithContext(ctx).Find(&records).Error; err != nil {

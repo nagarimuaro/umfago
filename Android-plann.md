@@ -1,103 +1,957 @@
-# Perbaikan Dokumen + Aplikasi Android React Native
+# Android Integration Plan — OpenJek
 
-## Context
+## 1. Pendahuluan
 
-Dua pekerjaan yang diminta, dan urutannya mengikat: dokumen harus benar dulu,
-baru aplikasi dibangun di atasnya.
+Dokumen ini adalah panduan integrasi untuk pengembangan aplikasi Android (React Native) pada platform OpenJek. Berbeda dengan pendekatan konvensional yang membangun tiga aplikasi terpisah (penumpang, driver, merchant), arsitektur OpenJek menggunakan **satu codebase** dengan tiga persona yang diaktifkan melalui mekanisme role aktif.
 
-**Masalah pertama — CLAUDE.md mendeskripsikan sistem tarif yang tidak ada.**
-Dokumen masih memuat `fare.base_price_idr` ("tarif dasar") dan
-`fare.min_fare_idr` ("tarif minimum") sebagai kunci setting, dan contoh response
-`/api/fare/estimate` masih menampilkan `base_fare: 5000` dan
-`distance_fee: 10200`. Di dalam kode, keduanya sudah dihapus:
-`internal/models/setting.go:58-61` justru mendaftarkan kedua kunci itu sebagai
-kunci usang yang **dibersihkan otomatis setiap server start**, dengan komentar
-yang menyebut alasannya — tarif minimum adalah nilai turunan
-(`min_distance_km × per_km_price`), jadi menyimpannya lagi berarti dua sumber
-kebenaran. Rumus yang berlaku sekarang di `internal/pricing/pricing.go` tidak
-punya tarif dasar sama sekali:
+### 1.1 Prinsip Dasar
 
-```
-charged_distance = max(distance_km, fare.min_distance_km)
-total            = round(charged_distance × fare.per_km_price_idr)
-```
+| Aspek | Penjelasan |
+|---|---|
+| Satu aplikasi, banyak peran | Satu instalasi APK berisi seluruh fitur penumpang, driver, dan merchant |
+| Role aktif menentukan tampilan | Navigation stack berubah berdasarkan `active_role` dari `GET /api/user` |
+| Multi-role dalam satu akun | Satu akun bisa memiliki `customer`, `driver_motorcycle`, `driver_car`, dan `merchant` sekaligus |
+| Perpindahan role tanpa logout | Cukup panggil `PUT /api/users/active-role` untuk berganti mode |
+| Backend sebagai sumber kebenaran | Otorisasi dihitung dari role aktif di server, bukan dari state lokal |
 
-Perbaikan atas hal ini sempat dikerjakan lalu **ter-revert** — perlu dikerjakan
-ulang dari awal, dan kali ini sekalian dengan bagian-bagian lain yang basi.
+### 1.2 Stack Teknologi
 
-**Masalah kedua — belum ada aplikasi mobile sama sekali.** Tidak ada satu pun
-berkas JS/TS di repositori; seluruhnya Go plus tujuh dokumen markdown. Bagian 10
-CLAUDE.md sudah menetapkan stack dan struktur folder, tetapi belum ada kode.
-
-Keduanya saling terikat: aplikasi Android dibangun dari kontrak API, dan
-kontrak yang tertulis sekarang keliru pada bagian yang paling sering dipanggil
-(estimasi tarif, pembuatan order). Membangun klien lebih dulu berarti menyalin
-kekeliruan itu ke dalam kode TypeScript.
-
-Ada juga satu hal yang harus beres sebelum perintah scaffolding apa pun
-dijalankan: **repositori ini bukan git repository dan tidak punya `.gitignore`,
-sementara `.env` berisi kredensial sungguhan ada di root.** `npx react-native
-init` menulis ratusan berkas ke dalam pohon ini tanpa cara membatalkannya, dan
-`.gitignore` yang ia hasilkan hanya mencakup subdirektori JS-nya sendiri — root
-`.env` tetap terbuka.
-
----
-
-## Bagian A — Pengaman sebelum menyentuh pohon berkas
-
-Dikerjakan lebih dulu, sebelum langkah lain mana pun.
-
-1. `git init` di root, lalu `.gitignore` root yang minimal mencakup:
-
-   ```
-   .env
-   .env.*
-   !.env.example
-   uploads/
-   coverage
-   node_modules/
-   android/app/build/
-   android/.gradle/
-   *.keystore
-   !debug.keystore
-   ```
-
-2. Commit pertama atas keadaan sekarang (`git add -A && git commit`). Ini yang
-   memberi titik balik bagi seluruh langkah berikutnya — tanpanya, penghapusan
-   dokumen di Bagian B dan scaffolding di Bagian C sama-sama tidak bisa
-   dibatalkan.
-
-3. Pastikan `.env` benar-benar tidak ikut ter-track: `git status --porcelain`
-   tidak boleh menyebutnya, dan `git log --stat -1` tidak boleh memuatnya.
-
----
-
-## Bagian B — Menyamakan dokumen dengan kode
-
-### B.1 Perbaikan CLAUDE.md
-
-Sembilan tempat yang salah, semuanya sudah diverifikasi terhadap sumber:
-
-| Bagian | Yang tertulis sekarang | Yang benar (sumber) |
+| Kebutuhan | Pilihan | Alasan |
 |---|---|---|
-| §6 tabel setting | `fare.base_price_idr`, `fare.min_fare_idr` | kunci sebenarnya di `pricing.go` (lihat di bawah) |
-| §9.4 response estimasi | `base_fare`, `distance_fee`, `min_fare_applied` | 13 field dari `pricing.Quote` |
-| §9.5 objek `fare` pada order | `{distance_km, base_fare, distance_fee, total, min_fare_applied}` | seluruh `pricing.Quote`, dengan `customer_fee` dihitung ulang setelah promo (`order_handler.go:336-355`) |
-| §9.1 daftar field Order | kurang 6 field | tambah `vehicle_id`, `customer_fee`, `merchant_fee`, `currency`, `promo_id`, `review_note` |
-| §8 jumlah route | 85 | pencacahan `server.go` menghasilkan **87** registrasi; angka final diambil dari `minimumRoutes` di `api_coverage_test.go` supaya dokumen dan test tidak berbeda pendapat |
-| §12 Fase 2 & 7 | notifikasi/katalog "belum" | tabel notifikasi, katalog produk, unggah berkas sudah ada |
-| §15 tabel test | tanpa test baru | tambah `chat_test.go` (5 kasus baru), `upload_test.go`, `product_test.go`, `merchant_product_test.go`; angka cakupan 65,1% sudah basi — diukur ulang atau dihapus |
-| §16 tiga butir | "penyimpanan berkas belum ada", "push notification belum ada" | endpoint unggah sudah ada (KYC belum dipindahkan ke sana); notifikasi tersimpan di tabel + WebSocket, yang belum ada hanya FCM/APNs |
-| §17 | tidak ada, padahal §9.10 dan §10.7 merujuknya | ditambahkan (lihat B.2) |
+| Framework | React Native (bare, bukan Expo managed) | Native module untuk peta & background location |
+| Bahasa | TypeScript | Kontrak API besar, tipe menangkap ketidakcocokan lebih awal |
+| Navigasi | React Navigation 6.x | Stack berbeda per role aktif |
+| Server state | TanStack Query v5 | Caching, retry, invalidasi setelah mutasi |
+| Client state | Zustand | Ringan, cukup untuk auth & sesi order berjalan |
+| Peta | MapLibre React Native + OpenStreetMap | Konsisten dengan roadmap, gratis, offline-capable |
+| Routing & geocoding | Valhalla & Nominatim | Dipanggil dari app, bukan lewat backend |
+| Penyimpanan token | react-native-keychain | Refresh token tidak boleh di AsyncStorage biasa |
+| WebSocket | WebSocket bawaan + reconnect | Protokol pesan sudah ditentukan backend |
+| Form | React Hook Form + Zod | Validasi KYC banyak field |
+| Background location | react-native-background-geolocation | Untuk driver tetap terdeteksi saat app di background |
 
-Kunci setting yang sebenarnya, dari `internal/pricing/pricing.go` dan
-`internal/models/setting.go`:
+---
+
+## 2. Autentikasi & Manajemen Token
+
+### 2.1 Alur Login
 
 ```
-fare.per_km_price_idr          3000      tarif per kilometer
-fare.min_distance_km           3         jarak minimum yang ditagihkan
-fare.platform_fee_percent      20        potongan dari pendapatan driver
-fare.customer_fee_percent      0         biaya DITAMBAHKAN di atas tarif penumpang
+┌─────────┐     ┌──────────┐     ┌────────────┐
+│  User   │────▶│ /login   │────▶│  Backend   │
+│  Input  │     │ POST     │     │            │
+└─────────┘     └──────────┘     └────────────┘
+                                      │
+                                      ▼
+                              ┌───────────────┐
+                              │ access_token  │
+                              │ refresh_token │
+                              │ user          │
+                              └───────────────┘
+                                      │
+                                      ▼
+                              ┌───────────────┐
+                              │ Simpan di     │
+                              │ Keychain      │
+                              └───────────────┘
+```
+
+### 2.2 Token Storage
+
+| Token | Penyimpanan | Umur | Tujuan |
+|---|---|---|---|
+| `access_token` | Memory (state) | 15 menit | Autentikasi API & WebSocket |
+| `refresh_token` | Keychain/Keystore | 30 hari | Mendapat access token baru |
+
+### 2.3 Interceptor HTTP
+
+Interceptor di `api/client.ts` menangani:
+
+1. Tambahkan `Authorization: Bearer <access_token>` ke semua request `/api/*`
+2. Tangkap response 401
+3. Panggil `POST /api/refresh` dengan refresh token
+4. Ulangi request yang gagal dengan token baru
+5. Jika refresh gagal → logout user
+
+**Peringatan:** Request paralel yang kena 401 harus **menunggu satu refresh**, tidak memicu beberapa refresh paralel. Token lama dicabut setiap kali dipakai, refresh paralel akan mencabut sesi user.
+
+### 2.4 Switch Role
+
+```
+PUT /api/users/active-role
+{ "role": "driver_motorcycle" }
+```
+
+Response:
+```json
+{
+  "message": "Role switched to driver_motorcycle",
+  "active_role": "driver_motorcycle",
+  "access_token": "eyJ...",
+  "expires_in": 900
+}
+```
+
+Tindakan yang harus dilakukan setelah switch:
+1. Ganti `access_token` di memory
+2. Reset navigation stack ke stack yang sesuai dengan role baru
+3. Invalidasi semua query TanStack Query
+4. Tutup koneksi WebSocket lama (jika ada) dan buka yang baru dengan token baru
+
+### 2.5 Logout
+
+1. Hapus `access_token` dari memory
+2. Hapus `refresh_token` dari Keychain
+3. Tutup WebSocket
+4. Navigasi ke layar login
+5. (Opsional) Panggil `POST /api/logout` untuk mencabut refresh token di server
+
+---
+
+## 3. Manajemen Role & Pengguna
+
+### 3.1 Endpoint
+
+| Endpoint | Method | Tujuan |
+|---|---|---|
+| `/api/register` | POST | Registrasi akun baru |
+| `/api/login` | POST | Login, dapatkan token |
+| `/api/refresh` | POST | Refresh access token |
+| `/api/logout` | POST | Logout, cabut refresh token |
+| `/api/user` | GET | Dapatkan data user saat ini |
+| `/api/users/roles` | POST | Tambah role ke akun |
+| `/api/users/active-role` | PUT | Pindah role aktif |
+
+### 3.2 Response `/api/user`
+
+```typescript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  is_active: boolean;
+  is_verified: boolean;
+  balance: number;
+  active_role: RoleCode;
+  available_roles: RoleCode[];
+}
+
+type RoleCode = 
+  | 'customer'
+  | 'driver_motorcycle'
+  | 'driver_car'
+  | 'merchant'
+  | 'admin.superadmin'
+  | 'admin.finance_head'
+  | 'admin.finance_staff'
+  | 'admin.sales_head'
+  | 'admin.cs'
+  | 'admin.ops_manager'
+  | 'admin.driver_manager';
+```
+
+### 3.3 Tambah Role
+
+```
+POST /api/users/roles
+{ "role": "driver_motorcycle" }
+```
+
+Hanya role `customer`, `driver_motorcycle`, `driver_car`, `merchant` yang bisa diminta sendiri. Role admin hanya bisa diberikan oleh user dengan permission `users.manage`.
+
+### 3.4 State Management (Zustand)
+
+```typescript
+// store/auth.ts
+interface AuthState {
+  user: User | null;
+  accessToken: string | null;
+  activeRole: RoleCode | null;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  switchRole: (role: RoleCode) => Promise<void>;
+  refreshToken: () => Promise<string>;
+}
+```
+
+---
+
+## 4. Navigasi Berbasis Role
+
+### 4.1 Struktur Navigasi
+
+```
+RootNavigator
+├── AuthStack (login, register)
+└── MainStack (bergantung active_role)
+    ├── customer → PassengerStack
+    ├── driver_motorcycle → DriverStack
+    ├── driver_car → DriverStack
+    ├── merchant → MerchantStack
+    └── admin.* → AdminStack (dashboard terpisah)
+```
+
+### 4.2 PassengerStack
+
+```
+PassengerStack
+├── Home (peta, cari tujuan)
+├── Estimate (estimasi tarif)
+├── ConfirmOrder (konfirmasi & promo)
+├── Tracking (live tracking order)
+├── History (riwayat order)
+├── OrderDetail (detail order + rating)
+├── Wallet (saldo, top up, history)
+└── Profile (profil user)
+```
+
+### 4.3 DriverStack
+
+```
+DriverStack
+├── Home (online/offline, status)
+├── KYC (pengajuan verifikasi)
+├── IncomingOrder (tawaran order masuk)
+├── Navigation (navigasi ke tujuan)
+├── RideStatus (status perjalanan)
+├── History (riwayat order)
+├── Earnings (pendapatan)
+├── Wallet (saldo, penarikan)
+└── Profile (profil driver)
+```
+
+### 4.4 MerchantStack
+
+```
+MerchantStack
+├── Home (dashboard penjualan)
+├── Products (katalog produk)
+├── ProductForm (tambah/edit produk)
+├── Orders (riwayat order merchant)
+├── Sales (laporan penjualan)
+├── Wallet (saldo, penarikan)
+└── Profile (profil merchant)
+```
+
+### 4.5 Implementasi RootNavigator
+
+```typescript
+// navigation/RootNavigator.tsx
+const RootNavigator = () => {
+  const { activeRole, isAuthenticated } = useAuthStore();
+  
+  if (!isAuthenticated) return <AuthStack />;
+  
+  switch (activeRole) {
+    case 'customer':
+      return <PassengerStack />;
+    case 'driver_motorcycle':
+    case 'driver_car':
+      return <DriverStack />;
+    case 'merchant':
+      return <MerchantStack />;
+    default:
+      return <PassengerStack />; // fallback
+  }
+};
+```
+
+---
+
+## 5. Integrasi API per Role
+
+### 5.1 Konvensi Umum
+
+- Semua endpoint `/api/*` membutuhkan `Authorization: Bearer <access_token>`
+- Pagination menggunakan `page` dan `per_page` (default 20, max 100)
+- Error format: `{ "error": "pesan" }` (satu field, bukan `{error, message}`)
+- Validasi gagal → **422**, bukan 400
+- Waktu dalam ISO 8601 UTC
+
+### 5.2 Passenger (Customer)
+
+| Fitur | Endpoint | Method |
+|---|---|---|
+| Home UI | `/api/ui/home` | GET |
+| Estimasi tarif | `/api/fare/estimate` | POST |
+| Validasi promo | `/api/promos/validate` | POST |
+| Buat order | `/api/orders` | POST |
+| Riwayat order | `/api/customer/orders` | GET |
+| Detail order | `/api/orders?uuid=...` | GET |
+| Rating driver | `/api/orders/:uuid/rate` | POST |
+| Chat | `/api/orders/:uuid/chat` | GET/POST |
+| Wallet saldo | `/api/wallet` | GET |
+| Top up | `/api/wallet/deposit` | POST |
+| Riwayat wallet | `/api/customer/wallet/history` | GET |
+| Notifikasi | `/api/notifications` | GET |
+| Profil | `/api/profile` | GET/PUT |
+
+### 5.3 Driver
+
+| Fitur | Endpoint | Method |
+|---|---|---|
+| KYC status | `/api/driver/kyc` | GET |
+| Submit KYC | `/api/driver/kyc` | POST |
+| Online/Offline | `/api/driver/status` | PUT |
+| Terima order | `/api/orders/:uuid/accept` | PUT |
+| Tolak order | `/api/orders/:uuid/reject` | PUT |
+| Ubah status perjalanan | `/api/orders/:uuid/status` | PUT |
+| Riwayat order | `/api/driver/orders` | GET |
+| Pendapatan | `/api/driver/earnings` | GET |
+| Wallet saldo | `/api/wallet` | GET |
+| Penarikan | `/api/wallet/withdraw` | POST |
+| Riwayat wallet | `/api/driver/wallet/history` | GET |
+| Chat | `/api/orders/:uuid/chat` | GET/POST |
+| Notifikasi | `/api/notifications` | GET |
+
+### 5.4 Merchant
+
+| Fitur | Endpoint | Method |
+|---|---|---|
+| Katalog produk | `/api/merchant/products` | GET |
+| Tambah produk | `/api/merchant/products` | POST |
+| Edit produk | `/api/merchant/products/:id` | PUT |
+| Hapus produk | `/api/merchant/products/:id` | DELETE |
+| Riwayat order | `/api/merchant/orders` | GET |
+| Laporan penjualan | `/api/merchant/sales` | GET |
+| Wallet saldo | `/api/wallet` | GET |
+| Penarikan | `/api/wallet/withdraw` | POST |
+| Riwayat wallet | `/api/merchant/wallet/history` | GET |
+| Profil merchant | `/api/profile/merchant` | PUT |
+
+### 5.5 Public (tanpa auth)
+
+| Endpoint | Tujuan |
+|---|---|
+| `/health` | Health check |
+| `/api/register` | Registrasi |
+| `/api/login` | Login |
+| `/api/refresh` | Refresh token |
+| `/api/products` | Katalog produk publik |
+| `/api/products/:id` | Detail produk publik |
+
+---
+
+## 6. WebSocket & Realtime
+
+### 6.1 Koneksi
+
+```
+ws://host/ws?token=<access_token>
+```
+
+- Hanya satu koneksi per user; koneksi lama ditutup saat yang baru terbuka
+- Ping berkala untuk menjaga koneksi tetap hidup
+- Reconnect dengan backoff eksponensial
+
+### 6.2 Pesan dari Server ke Driver
+
+| Pesan | Deskripsi |
+|---|---|
+| `incoming_order` | Tawaran order baru, driver harus merespon dalam `offer_timeout_seconds` (30 detik default) |
+| `order_accepted` | Order berhasil diambil oleh driver lain |
+| `order_cancelled` | Order dibatalkan oleh penumpang/admin |
+| `order_status_changed` | Status order berubah (arrived, in_progress, completed) |
+
+### 6.3 Pesan dari Driver ke Server
+
+| Pesan | Deskripsi |
+|---|---|
+| `location_update` | Update posisi driver (lat, lon) untuk indeks geospasial Redis |
+
+### 6.4 Pesan dari Server ke Penumpang
+
+| Pesan | Deskripsi |
+|---|---|
+| `driver_location` | Posisi driver yang sedang mengantar |
+| `order_status_changed` | Status order berubah |
+| `no_drivers_available` | Tidak ada driver tersedia untuk order |
+| `incoming_order` (informasi) | Order sedang dicari driver |
+
+### 6.5 Implementasi WebSocket Client
+
+```typescript
+// ws/client.ts
+class WebSocketClient {
+  private ws: WebSocket | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+  
+  connect(token: string) {
+    this.ws = new WebSocket(`ws://host/ws?token=${token}`);
+    this.ws.onmessage = this.handleMessage;
+    this.ws.onclose = () => this.reconnect();
+  }
+  
+  sendLocation(lat: number, lng: number) {
+    this.send({ type: 'location_update', lat, lng });
+  }
+}
+```
+
+---
+
+## 7. Alur Fitur Utama
+
+### 7.1 Pemesanan Order (Passenger)
+
+```
+1. User pilih pickup & destination di peta
+2. App panggil Nominatim untuk geocoding
+3. App panggil Valhalla untuk rute & jarak
+4. App panggil POST /api/fare/estimate
+5. User input promo code → POST /api/promos/validate
+6. User konfirmasi → POST /api/orders
+7. App terima response → mulai tracking via WebSocket
+8. WebSocket kirim status ke user (searching → accepted → ...)
+9. Order selesai → POST /api/orders/:uuid/rate
+```
+
+### 7.2 KYC Driver
+
+```
+1. Driver buka layar KYC
+2. App panggil GET /api/driver/kyc → dapat status & data yang sudah diisi
+3. Driver isi formulir (KTP, SIM, STNK, swafoto, rekening)
+4. Upload foto → POST /api/uploads → dapat URL
+5. Submit → POST /api/driver/kyc dengan URL foto
+6. Status berubah menjadi 'pending'
+7. Driver menunggu verifikasi admin
+8. Admin verifikasi → status 'approved' (is_verified = true)
+   atau 'rejected' (dengan reason)
+9. Driver cek status secara periodik
+```
+
+**Peringatan:**
+- Status `pending` tidak bisa submit ulang (409 Conflict)
+- SIM expired ditolak (422)
+- `approved` → submit ulang akan mencabut verifikasi (untuk ganti rekening)
+- Rekening disamarkan di `GET /api/driver/kyc` (hanya 4 digit terakhir)
+
+### 7.3 Online/Offline Driver
+
+```
+1. Driver tekan tombol "Online"
+2. App panggil PUT /api/driver/status { "status": "online" }
+3. Berhasil → app mulai kirim location_update via WebSocket
+4. Driver masuk indeks geospasial Redis
+5. Driver bisa menerima order via WebSocket
+6. Driver tekan "Offline" → status berubah, lokasi dihapus dari Redis
+```
+
+**Error yang mungkin:**
+- 403: "Driver account is not verified yet" → KYC belum approved
+- 403: "Finish your ongoing order before going offline" → masih ada order aktif
+- 422: "status must be online or offline" → nilai invalid
+
+### 7.4 Menerima/Menolak Order (Driver)
+
+```
+1. WebSocket menerima pesan 'incoming_order'
+2. Tampilkan notifikasi/alert ke driver
+3. Driver pilih "Terima" → PUT /api/orders/:uuid/accept
+   atau "Tolak" → PUT /api/orders/:uuid/reject (dengan reason opsional)
+4. Jika diterima → status order 'accepted', driver terikat
+5. Jika ditolak → order tetap 'searching', dicari driver lain
+```
+
+**Peringatan:**
+- Driver hanya bisa menerima order yang sesuai `vehicle_type` dengan role aktif
+- Driver hanya bisa menolak order yang pernah ditawarkan kepadanya
+- Order yang sudah diambil driver lain → 409 Conflict
+
+### 7.5 Perubahan Status Order (Driver)
+
+```
+PUT /api/orders/:uuid/status
+{ "status": "arrived" }  // atau "in_progress", "completed"
+```
+
+Status flow: `searching` → `accepted` → `arrived` → `in_progress` → `completed`
+
+Driver harus mengupdate status saat:
+- Tiba di lokasi pickup → `arrived`
+- Penumpang naik → `in_progress`
+- Tiba di tujuan → `completed`
+
+### 7.6 Wallet & Pembayaran
+
+#### Top Up (Passenger)
+```
+1. User pilih nominal
+2. App panggil POST /api/wallet/deposit { "amount": 100000 }
+3. Backend return payment token (Midtrans)
+4. App buka payment page (Midtrans Snap)
+5. User bayar → Webhook Midtrans → saldo bertambah
+6. App polling GET /api/wallet untuk cek saldo baru
+```
+
+#### Pembayaran Order
+- **Wallet:** Saldo dipotong saat order dibuat (`Insufficient wallet balance` → 400)
+- **Cash:** Tidak ada potongan; driver menagih ke penumpang
+
+#### Penarikan (Driver/Merchant)
+```
+POST /api/wallet/withdraw
+{
+  "amount": 50000,
+  "bank_name": "BCA",
+  "bank_account_number": "1234567890",
+  "bank_account_name": "Budi Santoso"
+}
+```
+
+**Driver:** Rekening diambil dari KYC yang sudah approved, body request diabaikan.
+**Merchant:** Rekening dari body request (belum ada KYC).
+
+### 7.7 Chat
+
+```
+GET /api/orders/:uuid/chat     → ambil riwayat chat
+POST /api/orders/:uuid/chat    → kirim pesan baru
+{ "message": "Halo driver, saya di depan gerbang" }
+```
+
+- Chat hanya bisa diakses oleh rider dan driver dari order tersebut
+- Chat tertutup setelah order selesai (tapi riwayat tetap terbaca)
+- Format pesan: `{ id, sender_id, message, created_at, is_read }`
+
+### 7.8 Rating
+
+```
+POST /api/orders/:uuid/rate
+{
+  "rating": 5,           // 1-5
+  "review": "Bagus!"      // opsional
+}
+```
+
+- Hanya untuk order dengan status `completed`
+- Hanya bisa dinilai sekali
+
+---
+
+## 8. Peta & Routing
+
+### 8.1 MapLibre
+
+```typescript
+// Install
+npm install @maplibre/maplibre-react-native
+
+// Usage
+import MapLibreGL from '@maplibre/maplibre-react-native';
+
+<MapLibreGL.MapView style={{ flex: 1 }}>
+  <MapLibreGL.Camera
+    centerCoordinate={[longitude, latitude]}
+    zoomLevel={14}
+  />
+  <MapLibreGL.PointAnnotation
+    id="pickup"
+    coordinate={[pickupLon, pickupLat]}
+  />
+</MapLibreGL.MapView>
+```
+
+### 8.2 Geocoding (Nominatim)
+
+```typescript
+// Reverse geocoding (koordinat → alamat)
+const response = await fetch(
+  `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+);
+
+// Forward geocoding (alamat → koordinat)
+const response = await fetch(
+  `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=5`
+);
+```
+
+### 8.3 Routing (Valhalla)
+
+```typescript
+// Get route & distance
+const response = await fetch(
+  `https://valhalla.host/route?json={
+    "locations":[
+      {"lat":${pickupLat},"lon":${pickupLon}},
+      {"lat":${dropoffLat},"lon":${dropoffLon}}
+    ],
+    "costing":"auto"
+  }`
+);
+```
+
+**Catatan:** Routing dan geocoding dipanggil **langsung dari aplikasi**, bukan lewat backend. Backend hanya menerima koordinat dan menghitung tarif berdasarkan jarak.
+
+---
+
+## 9. Background Location (Driver)
+
+### 9.1 Setup
+
+```bash
+npm install react-native-background-geolocation
+```
+
+### 9.2 Konfigurasi
+
+```typescript
+import BackgroundGeolocation from 'react-native-background-geolocation';
+
+BackgroundGeolocation.ready({
+  desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
+  stationaryRadius: 10,
+  distanceFilter: 10,
+  stopOnTerminate: false,
+  startOnBoot: true,
+  url: 'ws://host/ws',
+  // custom headers
+  headers: { Authorization: `Bearer ${accessToken}` }
+}, (state) => {
+  console.log('BackgroundGeolocation ready', state);
+});
+```
+
+### 9.3 Start/Stop
+
+```typescript
+// Saat driver online
+await BackgroundGeolocation.start();
+
+// Saat driver offline
+await BackgroundGeolocation.stop();
+```
+
+### 9.4 Izin Android
+
+Tambahkan ke `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```
+
+---
+
+## 10. Notifikasi
+
+### 10.1 Fetch Notifications
+
+```
+GET /api/notifications?page=&per_page=
+GET /api/notifications/unread-count
+PUT /api/notifications/:id/read
+PUT /api/notifications/read-all
+```
+
+### 10.2 WebSocket vs Push
+
+| Metode | Coverage | Status |
+|---|---|---|
+| WebSocket | App terbuka | ✅ Tersedia |
+| FCM/APNs | App tertutup | ❌ Belum (todo) |
+
+Saat ini, notifikasi hanya dikirim via WebSocket. Aplikasi harus:
+1. Menyimpan notifikasi lokal saat diterima via WebSocket
+2. Mengambil notifikasi yang terlewat via `GET /api/notifications` saat app dibuka
+
+### 10.3 Incoming Order Notification (Driver)
+
+Saat `incoming_order` diterima via WebSocket, tampilkan:
+- Alert atau modal dengan tombol Terima/Tolak
+- Informasi: pickup, destination, estimated distance, fare
+- Timer countdown (`offer_timeout_seconds` dari setting)
+
+---
+
+## 11. Error Handling
+
+### 11.1 Format Error
+
+Semua error mengembalikan:
+```json
+{ "error": "pesan error" }
+```
+
+Beberapa endpoint menambahkan field tambahan:
+- `allowed_values` → untuk error validasi enum
+- `kyc_status` → untuk error KYC
+- `missing_fields` → untuk KYC tidak lengkap
+
+### 11.2 HTTP Status Codes
+
+| Status | Arti |
+|---|---|
+| 200 | OK |
+| 201 | Created |
+| 400 | Bad Request (saldo kurang, dll) |
+| 401 | Unauthorized (token invalid/expired) |
+| 403 | Forbidden (role tidak sesuai, KYC belum approved, dll) |
+| 404 | Not Found |
+| 409 | Conflict (status tidak sesuai, duplikat, dll) |
+| 410 | Gone (promo expired) |
+| 422 | Validation Error (body invalid) |
+| 500 | Internal Server Error |
+
+### 11.3 Token Refresh Flow
+
+```
+Request → 401
+  ↓
+Cek apakah ada refresh token di Keychain
+  ↓
+Ada → Panggil POST /api/refresh
+  ↓
+Berhasil → Update access token, ulangi request
+Gagal → Logout user
+  ↓
+Tidak ada → Logout user
+```
+
+---
+
+## 12. Struktur Folder Aplikasi
+
+```
+src/
+├── api/
+│   ├── client.ts                 # HTTP client + interceptor
+│   ├── endpoints/
+│   │   ├── auth.ts               # login, register, refresh, logout
+│   │   ├── user.ts               # user, roles, active-role
+│   │   ├── orders.ts             # orders, accept, reject, status, rate
+│   │   ├── driver.ts             # kyc, status, earnings
+│   │   ├── merchant.ts           # products, sales
+│   │   ├── wallet.ts             # wallet, deposit, withdraw, history
+│   │   ├── promo.ts              # validate promo
+│   │   ├── fare.ts               # estimate fare
+│   │   ├── chat.ts               # chat messages
+│   │   ├── notifications.ts      # notifications
+│   │   └── upload.ts             # upload files
+│   └── types.ts                  # Request/Response types
+├── ws/
+│   ├── client.ts                 # WebSocket connection
+│   └── events.ts                 # Message types
+├── store/
+│   ├── auth.ts                   # Auth state (Zustand)
+│   ├── activeOrder.ts            # Current order state
+│   └── notifications.ts          # Notification state
+├── navigation/
+│   ├── RootNavigator.tsx
+│   ├── PassengerStack.tsx
+│   ├── DriverStack.tsx
+│   ├── MerchantStack.tsx
+│   └── AuthStack.tsx
+├── screens/
+│   ├── auth/
+│   │   ├── Login.tsx
+│   │   └── Register.tsx
+│   ├── passenger/
+│   │   ├── Home.tsx
+│   │   ├── Estimate.tsx
+│   │   ├── ConfirmOrder.tsx
+│   │   ├── Tracking.tsx
+│   │   ├── History.tsx
+│   │   └── OrderDetail.tsx
+│   ├── driver/
+│   │   ├── Home.tsx
+│   │   ├── KYC.tsx
+│   │   ├── IncomingOrder.tsx
+│   │   ├── Navigation.tsx
+│   │   ├── RideStatus.tsx
+│   │   ├── History.tsx
+│   │   └── Earnings.tsx
+│   ├── merchant/
+│   │   ├── Home.tsx
+│   │   ├── Products.tsx
+│   │   ├── ProductForm.tsx
+│   │   ├── Orders.tsx
+│   │   └── Sales.tsx
+│   └── shared/
+│       ├── Profile.tsx
+│       ├── Wallet.tsx
+│       ├── WalletHistory.tsx
+│       ├── Withdraw.tsx
+│       ├── Chat.tsx
+│       └── Notifications.tsx
+├── components/
+│   ├── common/
+│   │   ├── Button.tsx
+│   │   ├── Input.tsx
+│   │   ├── Loading.tsx
+│   │   └── ErrorBoundary.tsx
+│   └── map/
+│       ├── MapView.tsx
+│       ├── RoutePolyline.tsx
+│       └── Markers.tsx
+├── hooks/
+│   ├── useLocation.ts
+│   ├── useActiveOrder.ts
+│   ├── useWebSocket.ts
+│   ├── useNotifications.ts
+│   └── useDriverStatus.ts
+├── lib/
+│   ├── format.ts        # currency, distance, date
+│   └── validation.ts    # Zod schemas
+└── constants/
+    ├── roles.ts
+    ├── orderStatus.ts
+    └── endpoints.ts
+```
+
+---
+
+## 13. Konfigurasi Environment
+
+### 13.1 `.env` untuk Android
+
+```bash
+# Backend
+API_URL=http://192.168.1.100:8080
+WS_URL=ws://192.168.1.100:8080
+
+# Maps
+MAPLIBRE_STYLE_URL=https://tiles.openstreetmap.org
+NOMINATIM_URL=https://nominatim.openstreetmap.org
+VALHALLA_URL=https://valhalla.host
+
+# Midtrans
+MIDTRANS_CLIENT_KEY=your-client-key
+```
+
+### 13.2 Build Variants
+
+| Variant | API_URL | Tujuan |
+|---|---|---|
+| debug | http://localhost:8080 | Development local |
+| staging | https://staging-api.example.com | Testing |
+| release | https://api.example.com | Production |
+
+---
+
+## 14. Testing
+
+### 14.1 Unit Testing
+
+```bash
+npm test
+```
+
+### 14.2 Integration Testing (API)
+
+Gunakan backend testing dengan `TEST_DATABASE_URL`:
+
+```bash
+export TEST_DATABASE_URL="host=localhost user=postgres password=... dbname=testing port=5432 sslmode=disable"
+go test ./internal/handlers/ -v
+```
+
+### 14.3 E2E Testing (Detox)
+
+```bash
+npm run detox:build
+npm run detox:test
+```
+
+---
+
+## 15. Checklist Persiapan
+
+### 15.1 Sebelum Memulai
+
+- [ ] `git init` di root (jika belum)
+- [ ] Tambah `.gitignore` root dengan `.env`, `uploads/`, `coverage`, `node_modules/`, `android/app/build/`
+- [ ] Commit pertama (`git add -A && git commit -m "Initial commit"`)
+- [ ] Pastikan `.env` tidak ikut ter-track
+
+### 15.2 Setup React Native
+
+```bash
+# Install dependencies
+npm install
+
+# Install iOS (macOS only)
+cd ios && pod install
+
+# Run Android
+npx react-native run-android
+```
+
+### 15.3 Dependencies Tambahan
+
+```bash
+npm install @maplibre/maplibre-react-native
+npm install react-native-background-geolocation
+npm install react-native-keychain
+npm install react-native-safe-area-context
+npm install react-native-screens
+npm install @react-navigation/native @react-navigation/stack
+npm install @tanstack/react-query
+npm install zustand
+npm install react-hook-form @hookform/resolvers zod
+npm install react-native-gesture-handler
+npm install react-native-reanimated
+```
+
+---
+
+## 16. Hal yang Perlu Diperhatikan
+
+### 16.1 KYC Status
+
+| Status | Arti | Aksi |
+|---|---|---|
+| `not_submitted` | Belum mengajukan | Tampilkan form KYC |
+| `pending` | Sedang ditinjau | Tampilkan status menunggu, disable submit |
+| `approved` | Disetujui | Tampilkan verifikasi OK, bisa online |
+| `rejected` | Ditolak | Tampilkan `reason`, enable submit ulang |
+
+### 16.2 Status Online Tidak Ada di `GET /api/user`
+
+`GET /api/user` tidak mengembalikan `is_online`. Simpan status secara lokal dan anggap sebagai dugaan sampai `PUT /api/driver/status` mengonfirmasi.
+
+### 16.3 Format Koordinat
+
+| Endpoint | Format |
+|---|---|
+| `POST /api/fare/estimate` | `{ pickup: { lat, lng }, destination: { lat, lng } }` |
+| `POST /api/orders` | `pickup_lat, pickup_lon, dropoff_lat, dropoff_lon` (datar) |
+
+### 16.4 Total Fare
+
+`fare_amount` adalah tarif **setelah** promo dan **tanpa** customer_fee. Total yang dibayar penumpang adalah `fare_amount + customer_fee`.
+
+### 16.5 Wallet Transaction Types
+
+Semua huruf besar: `DEPOSIT`, `WITHDRAWAL`, `PAYMENT`, `REFUND`, `EARNING`, `FEE`, `BONUS`, `DISBURSED`
+
+### 16.6 Reconnect WebSocket
+
+Backend hanya mengizinkan satu koneksi per user. Reconnect agresif tanpa backoff akan membuat app saling menutup koneksinya sendiri.
+
+### 16.7 Background Location
+
+Driver perlu izin `ACCESS_BACKGROUND_LOCATION` dan foreground service di Android.
+
+---
+
+## 17. Referensi
+
+- [CLAUDE.md](./CLAUDE.md) — Dokumentasi backend lengkap
+- [Roadmap_Aplikasi_Ojek.md](./Roadmap_Aplikasi_Ojek.md) — Roadmap produk
+- [MapLibre React Native](https://github.com/maplibre/maplibre-react-native)
+- [Nominatim API](https://nominatim.org/release-docs/develop/api/Overview/)
+- [Valhalla API](https://valhalla.readthedocs.io/en/latest/api/)
+- [React Navigation](https://reactnavigation.org/)
+- [TanStack Query](https://tanstack.com/query)
+- [Zustand](https://zustand-demo.pmnd.rs/)
+- [react-native-keychain](https://github.com/oblador/react-native-keychain)
+- [react-native-background-geolocation](https://github.com/transistorsoft/react-native-background-geolocation)
 fare.merchant_fee_percent      0         potongan dari bagian merchant
 wallet.min_balance_idr         -10000    batas saldo minus driver
 matching.search_radius_km      5

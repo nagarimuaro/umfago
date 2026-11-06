@@ -36,16 +36,38 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 		available = append(available, gin.H{"code": r.Code, "name": r.Name, "group": r.Group})
 	}
 
+	// Sertakan daftar permission efektif agar klien (dashboard admin) dapat
+	// merender menu secara dinamis tanpa memetakan role->menu di sisi klien.
+	var permissions []models.PermissionCode
+	if user.RoleCode == models.RoleSuperAdmin {
+		permissions = make([]models.PermissionCode, 0, len(models.AllPermissions))
+		for _, p := range models.AllPermissions {
+			permissions = append(permissions, p.Code)
+		}
+	} else {
+		permissions = make([]models.PermissionCode, 0, len(user.Role.Permissions))
+		for _, p := range user.Role.Permissions {
+			permissions = append(permissions, p.Code)
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"id":              user.ID,
-		"name":            user.Name,
-		"email":           user.Email,
-		"phone":           user.Phone,
-		"is_active":       user.IsActive,
-		"is_verified":     user.IsVerified,
-		"balance":         user.Balance,
-		"active_role":     user.RoleCode,
-		"available_roles": available,
+		"id":                user.ID,
+		"name":              user.Name,
+		"email":             user.Email,
+		"phone":             user.Phone,
+		"gender":            user.Gender,
+		"birth_date":        user.BirthDate,
+		"address":           user.Address,
+		"identity_number":   user.IdentityNumber,
+		"emergency_contact": user.EmergencyContact,
+		"is_active":         user.IsActive,
+		"is_verified":       user.IsVerified,
+		"is_online":         user.IsOnline,
+		"balance":           user.Balance,
+		"active_role":       user.RoleCode,
+		"available_roles":   available,
+		"permissions":       permissions,
 	})
 }
 

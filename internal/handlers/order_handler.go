@@ -979,6 +979,162 @@ func (h *OrderHandler) GetOrderHistory(c *gin.Context) {
 	})
 }
 
+// GetOrderByUUID — GET /api/orders/:uuid
+// Mengambil detail pesanan beserta informasi profil driver asli dari database (bila sudah ada driver).
+func (h *OrderHandler) GetOrderByUUID(c *gin.Context) {
+	uuidParam := c.Param("uuid")
+	userID := c.GetUint(middleware.UserIDKey)
+	role := models.RoleCode(c.GetString(middleware.UserRoleKey))
+
+	var order models.Order
+	if err := h.db.Where("uuid = ?", uuidParam).First(&order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load order"})
+		return
+	}
+
+	// Hanya rider pemilik order, driver yang ditugaskan, atau admin yang boleh melihat
+	if !models.IsAdminRole(role) && order.RiderID != userID && (order.DriverID == nil || *order.DriverID != userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to view this order"})
+		return
+	}
+
+	resp := gin.H{
+		"order": order,
+	}
+
+	// Jika order sudah memiliki driver di database, muat data asli driver
+	if order.DriverID != nil {
+		var driver models.User
+		if err := h.db.Preload("DriverProfile").Preload("Vehicles").
+			Where("id = ?", *order.DriverID).First(&driver).Error; err == nil {
+
+			driverInfo := gin.H{
+				"id":     driver.ID,
+				"name":   driver.Name,
+				"phone":  driver.Phone,
+				"rating": 4.9,
+			}
+
+			if len(driver.Vehicles) > 0 {
+				v := driver.Vehicles[0]
+				driverInfo["vehicle"] = fmt.Sprintf("%s %s", v.Brand, v.ModelName)
+				driverInfo["plate"] = v.PlateNumber
+			} else {
+				driverInfo["vehicle"] = order.VehicleType
+				driverInfo["plate"] = "-"
+			}
+
+			if driver.DriverProfile != nil && driver.DriverProfile.SelfiePhotoURL != "" {
+				driverInfo["photo"] = driver.DriverProfile.SelfiePhotoURL
+			}
+
+			resp["driver"] = driverInfo
+		}
+	} else {
+		resp["driver"] = nil
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// CancelOrder — PUT /api/orders/:uuid/cancel (oleh Rider)
+// Membatalkan pesanan yang sedang mencari driver (atau sebelum perjalanan dimulai).
+func (h *OrderHandler) CancelOrder(c *gin.Context) {
+	uuidParam := c.Param("uuid")
+	userID := c.GetUint(middleware.UserIDKey)
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	reason := req.Reason
+	if reason == "" {
+		reason = "Dibatalkan oleh penumpang"
+	}
+
+	var order models.Order
+	var refunded float64
+
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(lockForUpdate()).
+			Where("uuid = ?", uuidParam).First(&order).Error; err != nil {
+			return err
+		}
+
+		if order.RiderID != userID {
+			return errors.New("unauthorized to cancel this order")
+		}
+
+		if order.Status == models.StatusCompleted || order.Status == models.StatusCancelled {
+			return errInvalidTransition
+		}
+
+		if order.PaymentMethod == models.PaymentWallet {
+			totalToRefund := order.FareAmount + order.CustomerFee
+			companyID, err := repository.NewCompanyAccount(h.db).Ensure(tx)
+			if err == nil {
+				_, _ = h.wallet.Debit(tx, repository.Entry{
+					UserID:    companyID,
+					Amount:    totalToRefund,
+					Type:      models.TxTypeEscrow,
+					OrderUUID: order.UUID,
+					Note:      "Pengembalian titipan dana order dibatalkan: " + order.UUID,
+				})
+			}
+			if _, err := h.wallet.Credit(tx, repository.Entry{
+				UserID:    order.RiderID,
+				Amount:    totalToRefund,
+				Type:      models.TxTypeRefund,
+				OrderUUID: order.UUID,
+				Note:      "Pengembalian dana order dibatalkan: " + reason,
+			}); err != nil {
+				return err
+			}
+			refunded = totalToRefund
+		}
+
+		// Batalkan semua penawaran yang masih berstatus offered
+		_ = tx.Model(&models.OrderOffer{}).
+			Where("order_uuid = ? AND status = ?", order.UUID, models.OfferOffered).
+			Update("status", models.OfferExpired).Error
+
+		now := time.Now()
+		return tx.Model(&models.Order{}).Where("id = ?", order.ID).
+			Updates(map[string]interface{}{
+				"status":       models.StatusCancelled,
+				"cancelled_at": now,
+			}).Error
+	})
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+	if errors.Is(err, errInvalidTransition) {
+		c.JSON(http.StatusConflict, gin.H{"error": "Order can no longer be cancelled"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if order.DriverID != nil {
+		h.notifyUser(*order.DriverID, "order_cancelled", order.UUID)
+		h.pushNotif(*order.DriverID, models.NotifOrderCancelled, "Order Dibatalkan", "Penumpang telah membatalkan order.", order.UUID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Order cancelled successfully",
+		"status":   models.StatusCancelled,
+		"refunded": refunded,
+	})
+}
+
 // enforceBalanceFloor — paksa offline pihak yang saldonya sudah menembus batas.
 //
 // Order tunai memotong komisi tanpa menuntut deposit lebih dulu, jadi saldo

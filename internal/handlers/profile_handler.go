@@ -33,13 +33,27 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	})
 }
 
-// UpdateUserProfile — Update data dasar (Nama, Phone)
+// UpdateUserProfile — Update data profil pengguna
+// Bila akun sudah terverifikasi (KYC approved / is_verified = true), data
+// identitas utama (nama, jenis kelamin, tanggal lahir, NIK KTP) dikunci dan
+// tidak boleh diubah sendiri.
 func (h *ProfileHandler) UpdateUserProfile(c *gin.Context) {
 	userID := c.GetUint(middleware.UserIDKey)
 
+	var user models.User
+	if err := h.db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
 	var req struct {
-		Name  string `json:"name"`
-		Phone string `json:"phone"`
+		Name             string `json:"name"`
+		Phone            string `json:"phone"`
+		Gender           string `json:"gender"`
+		BirthDate        string `json:"birth_date"`
+		Address          string `json:"address"`
+		IdentityNumber   string `json:"identity_number"`
+		EmergencyContact string `json:"emergency_contact"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,16 +62,37 @@ func (h *ProfileHandler) UpdateUserProfile(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{}
-	if req.Name != "" {
-		updates["name"] = req.Name
-	}
 	if req.Phone != "" {
 		updates["phone"] = req.Phone
 	}
+	if req.Address != "" {
+		updates["address"] = req.Address
+	}
+	if req.EmergencyContact != "" {
+		updates["emergency_contact"] = req.EmergencyContact
+	}
 
-	if err := h.db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
-		return
+	// Hanya izinkan perubahan nama, jenis kelamin, tanggal lahir, dan NIK jika belum KYC / belum terverifikasi
+	if !user.IsVerified {
+		if req.Name != "" {
+			updates["name"] = req.Name
+		}
+		if req.Gender != "" {
+			updates["gender"] = req.Gender
+		}
+		if req.BirthDate != "" {
+			updates["birth_date"] = req.BirthDate
+		}
+		if req.IdentityNumber != "" {
+			updates["identity_number"] = req.IdentityNumber
+		}
+	}
+
+	if len(updates) > 0 {
+		if err := h.db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Profile updated"})

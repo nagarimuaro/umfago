@@ -1,0 +1,10 @@
+{
+	"name": "openjek-frontend",
+	"private": true,
+	"scripts": {
+		"dev": "npm --prefix admin run dev",
+		"build": "npm --prefix admin run build",
+		"preview": "npm --prefix admin run preview",
+		"check": "npm --prefix admin run check"
+	}
+}

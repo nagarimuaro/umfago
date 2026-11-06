@@ -1,9 +1,13 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -20,6 +24,30 @@ type Config struct {
 	UploadDir            string
 }
 
+// loadDotEnv — muat berkas .env bila ada, tanpa menimpa variabel yang sudah
+// di-set di environment.
+//
+// Urutan itu disengaja: di server produksi konfigurasi datang dari environment
+// (systemd, Docker, orkestrator), dan sebuah .env yang tanpa sengaja ikut
+// ter-deploy tidak boleh diam-diam mengambil alih nilai yang benar. Di mesin
+// pengembang, environment biasanya kosong sehingga .env yang dipakai.
+//
+// Berkas yang tidak ada bukan kesalahan — deployment produksi memang tidak
+// punya .env. Kesalahan baca lain (izin, sintaks rusak) dilaporkan, karena itu
+// tanda berkasnya ada tapi tidak terpakai, dan diam di titik ini akan muncul
+// kemudian sebagai "konfigurasi wajib belum di-set" yang membingungkan.
+func loadDotEnv() {
+	err := godotenv.Load()
+	if err == nil {
+		log.Println("[Config] .env dimuat (variabel environment yang sudah ada tetap menang).")
+		return
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	log.Printf("[Config] .env ada tetapi gagal dibaca: %v — melanjutkan dengan environment saja.", err)
+}
+
 // LoadConfig — baca konfigurasi dari environment.
 //
 // Nilai rahasia (JWT_SECRET, DATABASE_URL, dan kunci Midtrans saat production)
@@ -27,6 +55,8 @@ type Config struct {
 // yang diam-diam terpakai di production adalah cara paling umum sebuah backend
 // berakhir dengan secret yang bisa ditebak siapa saja.
 func LoadConfig() *Config {
+	loadDotEnv()
+
 	var missing []string
 
 	requireEnv := func(key string) string {

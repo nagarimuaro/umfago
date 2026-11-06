@@ -35,31 +35,42 @@ func (h *SDUIHandler) GetHomeScreen(c *gin.Context) {
 	c.JSON(http.StatusOK, screen)
 }
 
-// GetSettings — GET /api/settings (hanya untuk Admin)
-// Mengembalikan semua setting saat ini
+// GetSettings — GET /api/admin/settings (hanya untuk Admin)
+// Mengembalikan map key->value (settings) sekaligus daftar baris lengkap beserta
+// type, group, dan description (items) agar dashboard tidak perlu menduplikasi metadata.
 func (h *SDUIHandler) GetSettings(c *gin.Context) {
-	settings, err := h.settings.GetAll(c.Request.Context())
+	ctx := c.Request.Context()
+	settings, err := h.settings.GetAll(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load settings"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"settings": settings})
+	items, err := h.settings.ListRecords(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"settings": settings,
+		"items":    items,
+	})
 }
 
-// UpdateSetting — PUT /api/settings/:key (hanya untuk Admin)
-// Admin Dashboard memanggil ini untuk mengubah pengaturan secara real-time
+// UpdateSetting — PUT /api/admin/settings/:key (hanya untuk Admin)
+// Admin Dashboard memanggil ini untuk mengubah pengaturan secara real-time.
+// Nilai string kosong tetap sah (mis. mengosongkan ui.home_banner_text).
 func (h *SDUIHandler) UpdateSetting(c *gin.Context) {
 	key := c.Param("key")
 
 	var req struct {
-		Value string `json:"value" binding:"required"`
+		Value *string `json:"value" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := h.settings.Set(c.Request.Context(), key, req.Value); err != nil {
+	if err := h.settings.Set(c.Request.Context(), key, *req.Value); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update setting"})
 		return
 	}
@@ -67,6 +78,6 @@ func (h *SDUIHandler) UpdateSetting(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Setting updated successfully",
 		"key":     key,
-		"value":   req.Value,
+		"value":   *req.Value,
 	})
 }

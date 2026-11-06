@@ -22,6 +22,11 @@ mobile/node_modules/
 npm-debug.log*
 yarn-error.log*
 .metro-health-check*
+*.log
+.expo/
+.svelte-kit/
+dist/
+build/
 
 # Android
 android/app/build/

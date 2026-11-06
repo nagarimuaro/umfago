@@ -19,7 +19,10 @@ type Product struct {
 	Price       float64 `gorm:"not null" json:"price"`
 	ImageURL    string  `gorm:"type:varchar(500)" json:"image_url"`
 	Category    string  `gorm:"type:varchar(50);index" json:"category"`
-	IsAvailable bool    `gorm:"default:true;index" json:"is_available"`
+	// Tanpa tag default: GORM melewati nilai nol (false) saat INSERT bila kolom
+	// punya default, sehingga produk yang sengaja dikosongkan tersimpan true.
+	// Default "tersedia" ditetapkan di handler pembuatan produk.
+	IsAvailable bool    `gorm:"index" json:"is_available"`
 
 	// Penghitung kumulatif, dipakai halaman merchant ("dilihat 340 kali").
 	// Peringkat TIDAK memakai kolom ini melainkan menghitung ulang jendela 30

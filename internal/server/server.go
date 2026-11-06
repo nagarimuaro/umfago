@@ -74,12 +74,24 @@ func NewServer() *Server {
 		&models.Notification{},
 		&models.Product{},
 		&models.ProductEvent{},
+		&models.ServiceCatalog{},
+		&models.City{},
+		&models.Branch{},
+		&models.GeoZone{},
+		&models.SupportTicket{},
+		&models.RiskCase{},
+		&models.ApprovalRequest{},
+		&models.AuditLog{},
+		&models.FeatureFlag{},
 	); err != nil {
 		log.Fatalf("AutoMigrate failed: %v", err)
 	}
 
 	// Seed RBAC (roles, permissions, dan relasinya)
 	repository.SeedRolesAndPermissions(database)
+	repository.SeedAdminAccount(database)
+	repository.SeedEnterpriseDefaults(database)
+	repository.SeedOperationalDemoData(database)
 
 	// Seed akun perusahaan
 	repository.SeedCompanyAccount(database)
@@ -121,8 +133,10 @@ func NewServer() *Server {
 			log.Printf("[Server] Failed to mark driver %d offline: %v", userID, err)
 			return
 		}
-		if err := locRepo.RemoveDriver(context.Background(), userID); err != nil {
-			log.Printf("[Server] Failed to remove driver %d from location index: %v", userID, err)
+		if locRepo != nil {
+			if err := locRepo.RemoveDriver(context.Background(), userID); err != nil {
+				log.Printf("[Server] Failed to remove driver %d from location index: %v", userID, err)
+			}
 		}
 	}
 
@@ -169,6 +183,7 @@ func NewServer() *Server {
 	adminUserHandler := handlers.NewAdminUserHandler(database, roleRepo)
 	promoHandler := handlers.NewPromoHandler(database)
 	reportHandler := handlers.NewReportHandler(database)
+	enterpriseHandler := handlers.NewEnterpriseHandler(database, locRepo)
 
 	r := gin.Default()
 	r.HandleMethodNotAllowed = true
@@ -222,6 +237,8 @@ func NewServer() *Server {
 		// Order Routes
 		protected.GET("/orders", orderHandler.GetOrderHistory)
 		protected.POST("/orders", orderHandler.CreateOrder)
+		protected.GET("/orders/:uuid", orderHandler.GetOrderByUUID)
+		protected.PUT("/orders/:uuid/cancel", orderHandler.CancelOrder)
 		protected.PUT("/orders/:uuid/accept", middleware.RequireDriver(), orderHandler.AcceptOrder)
 		protected.PUT("/orders/:uuid/reject", middleware.RequireDriver(), orderHandler.RejectOrder)
 		protected.PUT("/orders/:uuid/status", middleware.RequireDriver(), orderHandler.UpdateOrderStatus)
@@ -466,6 +483,115 @@ func NewServer() *Server {
 		admin.GET("/reports/top-drivers",
 			middleware.RequirePermission(database, models.PermReportsView),
 			reportHandler.TopDrivers,
+		)
+
+		// ── Enterprise Extensions (Fase 1–7) ─────────────────────────
+		// Live Map (§8.2)
+		admin.GET("/map/live-drivers",
+			middleware.RequirePermission(database, models.PermDriversView),
+			enterpriseHandler.LiveDrivers,
+		)
+
+		// Multi-City & Branches (§16)
+		admin.GET("/cities",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListCities,
+		)
+		admin.POST("/cities",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.CreateCity,
+		)
+		admin.PUT("/cities/:id",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.UpdateCity,
+		)
+		admin.GET("/branches",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListBranches,
+		)
+		admin.POST("/branches",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.CreateBranch,
+		)
+
+		// Geo Zones & Geofencing (§8.3–8.5)
+		admin.GET("/zones",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListZones,
+		)
+		admin.POST("/zones",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.CreateZone,
+		)
+		admin.DELETE("/zones/:id",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.DeleteZone,
+		)
+
+		// Service Management (§9)
+		admin.GET("/services",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListServices,
+		)
+		admin.PUT("/services/:id",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.UpdateService,
+		)
+
+		// Fleet Directory (§7)
+		admin.GET("/fleet",
+			middleware.RequirePermission(database, models.PermDriversView),
+			enterpriseHandler.ListFleet,
+		)
+
+		// Customer Support & Disputes (§14)
+		admin.GET("/support/tickets",
+			middleware.RequirePermission(database, models.PermOrdersView),
+			enterpriseHandler.ListTickets,
+		)
+		admin.PUT("/support/tickets/:id",
+			middleware.RequirePermission(database, models.PermOrdersView),
+			enterpriseHandler.UpdateTicket,
+		)
+
+		// Risk & Fraud (§15)
+		admin.GET("/risk/cases",
+			middleware.RequirePermission(database, models.PermOrdersView),
+			enterpriseHandler.ListRiskCases,
+		)
+		admin.PUT("/risk/cases/:id",
+			middleware.RequirePermission(database, models.PermOrdersView),
+			enterpriseHandler.UpdateRiskCase,
+		)
+
+		// Maker-Checker Approvals (§17.3)
+		admin.GET("/approvals",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListApprovals,
+		)
+		admin.PUT("/approvals/:id",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.DecideApproval,
+		)
+
+		// Audit Logs (§21)
+		admin.GET("/audit-logs",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListAuditLogs,
+		)
+
+		// Feature Flags & System Health (§19–20)
+		admin.GET("/feature-flags",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.ListFeatureFlags,
+		)
+		admin.PUT("/feature-flags/:key",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.UpdateFeatureFlag,
+		)
+		admin.GET("/system/health",
+			middleware.RequirePermission(database, models.PermSettingsManage),
+			enterpriseHandler.SystemHealth,
 		)
 	}
 
