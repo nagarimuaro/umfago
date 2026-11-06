@@ -41,8 +41,9 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: "Setup Android SDK"
-        uses: android-actions/setup-android@v3
+      - name: "Accept Android SDK Licenses"
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
 
       - name: "Setup Gradle Cache"
         uses: gradle/actions/setup-gradle@v4
@@ -71,6 +72,7 @@ jobs:
         working-directory: android/mobile-app/android
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'release' }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m"
         run: |
           chmod +x gradlew
           if [ "$BUILD_TYPE" = "debug" ]; then
