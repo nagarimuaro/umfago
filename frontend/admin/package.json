@@ -7,9 +7,9 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "node ./node_modules/@sveltejs/kit/src/cli.js sync || echo ''",
-		"check": "node ./node_modules/@sveltejs/kit/src/cli.js sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "node ./node_modules/@sveltejs/kit/src/cli.js sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"prepare": "node ./node_modules/@sveltejs/kit/src/cli.js sync && node ./scripts/patch-app-types.js || echo ''",
+		"check": "node ./node_modules/@sveltejs/kit/src/cli.js sync && node ./scripts/patch-app-types.js && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "node ./node_modules/@sveltejs/kit/src/cli.js sync && node ./scripts/patch-app-types.js && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^4.0.0",
