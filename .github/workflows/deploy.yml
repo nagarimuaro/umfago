@@ -33,11 +33,11 @@ jobs:
           go-version: '1.24'
           cache: true
 
-      # Setup Node.js untuk Dashboard Admin
+      # Setup Node.js untuk Dashboard Admin (SvelteKit 3 & Vite 8 butuh Node 22+)
       - name: "Setup Node.js"
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/admin/package-lock.json
 
@@ -48,9 +48,9 @@ jobs:
 
       # Typecheck & Build Dashboard Admin SvelteKit
       - name: "Build Admin Dashboard"
+        working-directory: frontend/admin
         run: |
-          cd frontend/admin
-          npm ci
+          npm ci --engine-strict=false
           npm run check
           npm run build
 
