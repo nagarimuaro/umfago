@@ -8,7 +8,7 @@
  */
 export const CallCopy = {
   /** Subtitle under the callee's name. */
-  role: 'OpenRide Driver',
+  role: 'Driver UmfaGo',
   /** Rendered uppercase by `Typography.overlineLg`. */
   status: 'Calling...',
   minimize: 'Minimize call',

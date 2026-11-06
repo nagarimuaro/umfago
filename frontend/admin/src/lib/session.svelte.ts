@@ -73,6 +73,8 @@ function setStoredRefresh(token: string | null) {
 	}
 }
 
+const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '';
+
 async function refreshSession(): Promise<boolean> {
 	if (refreshInFlight) return refreshInFlight;
 
@@ -81,7 +83,7 @@ async function refreshSession(): Promise<boolean> {
 
 	refreshInFlight = (async () => {
 		try {
-			const res = await fetch('/api/refresh', {
+			const res = await fetch(`${apiBase}/api/refresh`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ refresh_token: rt })
@@ -118,6 +120,8 @@ export async function apiFetch<T = unknown>(
 	path: string,
 	init: RequestInit & { json?: unknown; skipAuth?: boolean } = {}
 ): Promise<T> {
+	const url = path.startsWith('http://') || path.startsWith('https://') ? path : `${apiBase}${path}`;
+
 	const doRequest = async (): Promise<Response> => {
 		const headers = new Headers(init.headers);
 		if (init.json !== undefined) {
@@ -126,7 +130,7 @@ export async function apiFetch<T = unknown>(
 		if (!init.skipAuth && session.accessToken) {
 			headers.set('Authorization', `Bearer ${session.accessToken}`);
 		}
-		return fetch(path, {
+		return fetch(url, {
 			...init,
 			headers,
 			body: init.json !== undefined ? JSON.stringify(init.json) : init.body

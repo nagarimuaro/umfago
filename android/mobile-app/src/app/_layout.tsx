@@ -18,6 +18,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Brand, Palette, Typography } from '@/constants/design-system';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { BookingProvider } from '@/hooks/use-booking';
+import { FoodOrderProvider } from '@/hooks/use-food-order';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -61,6 +62,9 @@ function RootNavigator() {
         <Stack.Screen name="food" options={{ headerShown: false }} />
         {/* A store's menu floats its own back button over the hero photo, so no header. */}
         <Stack.Screen name="food/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="food/checkout" options={{ headerShown: false }} />
+        <Stack.Screen name="food/address" options={{ headerShown: false }} />
+        <Stack.Screen name="history/[id]" options={{ headerShown: false }} />
         {/* The service screen floats its own back button over the map, so no header. */}
         <Stack.Screen name="booking/service" options={{ headerShown: false }} />
         <Stack.Screen name="booking/searching" options={{ headerShown: false }} />
@@ -113,7 +117,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <BookingProvider>
-        <RootNavigator />
+        <FoodOrderProvider>
+          <RootNavigator />
+        </FoodOrderProvider>
       </BookingProvider>
     </AuthProvider>
   );

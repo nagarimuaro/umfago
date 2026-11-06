@@ -46,7 +46,7 @@ func VehicleTypeForRole(code RoleCode) string {
 //
 // Dipakai juga untuk menyusun pesan penolakan, sehingga daftar yang dikirim ke
 // klien tidak bisa menyimpang dari daftar yang benar-benar diterima.
-var ServiceTypes = []string{"ride", VehicleMotorcycle, VehicleCar, "taxi"}
+var ServiceTypes = []string{"ride", VehicleMotorcycle, VehicleCar, "taxi", "food", "send"}
 
 // NormalizeVehicleType — terjemahkan service_type dari klien ke jenis kendaraan.
 //
@@ -59,7 +59,7 @@ func NormalizeVehicleType(serviceType string) string {
 	switch serviceType {
 	case VehicleCar, "taxi":
 		return VehicleCar
-	case VehicleMotorcycle, "ride":
+	case VehicleMotorcycle, "ride", "food", "send":
 		return VehicleMotorcycle
 	default:
 		return ""
@@ -110,6 +110,8 @@ type Order struct {
 	PromoDiscount float64 `json:"promo_discount"`
 	// VehicleType menentukan jenis driver yang boleh menerima order ini.
 	VehicleType string `json:"vehicle_type" gorm:"default:'motorcycle';index"`
+	// ServiceType menyimpan jenis layanan aplikasi (ride, car, food, send, mart, med).
+	ServiceType string `json:"service_type" gorm:"type:varchar(50);default:'ride';index"`
 
 	// Ratings
 	CustomerRating *int   `json:"customer_rating"` // Rating yang diberikan Customer ke Driver

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profil Saya - OpenJek</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "on-primary-fixed-variant": "#3b4d00",
+          "surface-variant": "#353535",
+          "outline": "#8e9479",
+          "surface-container-high": "#2a2a2a",
+          "primary": "#ffffff",
+          "secondary-container": "#474746",
+          "outline-variant": "#434933",
+          "on-tertiary-fixed": "#1a1c1c",
+          "surface-dim": "#131313",
+          "error-container": "#93000a",
+          "on-secondary-fixed": "#1c1b1b",
+          "surface-container-highest": "#353535",
+          "on-primary": "#273500",
+          "tertiary": "#ffffff",
+          "inverse-primary": "#4f6600",
+          "on-primary-fixed": "#161f00",
+          "surface-container-lowest": "#0e0e0e",
+          "tertiary-container": "#e2e2e2",
+          "on-tertiary": "#2f3131",
+          "surface-tint": "#a8d700",
+          "inverse-surface": "#e4e2e1",
+          "on-secondary": "#313030",
+          "inverse-on-surface": "#303030",
+          "on-primary-container": "#546d00",
+          "on-error": "#690005",
+          "on-secondary-container": "#b7b5b4",
+          "on-tertiary-container": "#636565",
+          "primary-fixed": "#c0f500",
+          "on-error-container": "#ffdad6",
+          "tertiary-fixed-dim": "#c6c6c7",
+          "secondary": "#c8c6c5",
+          "on-surface-variant": "#c4caac",
+          "surface-container-low": "#1b1c1c",
+          "tertiary-fixed": "#e2e2e2",
+          "on-secondary-fixed-variant": "#474746",
+          "surface-container": "#1f2020",
+          "surface-bright": "#393939",
+          "background": "#121212",
+          "on-background": "#e4e2e1",
+          "secondary-fixed": "#e5e2e1",
+          "surface": "#121212",
+          "secondary-fixed-dim": "#c8c6c5",
+          "on-tertiary-fixed-variant": "#454747",
+          "error": "#ffb4ab",
+          "primary-container": "#c0f500",
+          "on-surface": "#e4e2e1",
+          "primary-fixed-dim": "#a8d700"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "fontFamily": {
+          "headline-xl": ["Hanken Grotesk"],
+          "body-md": ["Inter"],
+          "currency-display": ["Hanken Grotesk"],
+          "headline-lg": ["Hanken Grotesk"],
+          "label-caps": ["JetBrains Mono"],
+          "headline-lg-mobile": ["Hanken Grotesk"],
+          "body-sm": ["Inter"],
+          "body": ["Inter"],
+          "headline": ["Hanken Grotesk"],
+          "label": ["Inter"]
+        }
+      },
+    },
+  }
+</script>
+</head>
+<body class="bg-background text-on-background font-body min-h-screen pb-28 pt-16 selection:bg-primary-container selection:text-on-primary-fixed">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-4 h-16 w-full fixed top-0 z-50 bg-[#121212]/90 backdrop-blur-md border-b border-[#2a2a2a]">
+<button aria-label="Go back" class="text-on-surface hover:text-white transition-opacity active:scale-95 transition-transform flex items-center justify-center p-2 rounded-lg hover:bg-[#1f2020]">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="text-white font-headline text-lg font-bold">Profil Saya</h1>
+<div class="w-8 h-8"></div> <!-- Spacer for centering -->
+</header>
+<!-- Main Content -->
+<main class="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+<!-- Profile Picture Section -->
+<section class="flex flex-col items-center pt-4 pb-2">
+<div class="relative group cursor-pointer active:scale-95 transition-transform duration-200">
+<div class="w-28 h-28 rounded-full overflow-hidden border-4 border-[#242525] shadow-xl">
+<img alt="Profile Picture" class="w-full h-full object-cover" data-alt="A high-quality, professional headshot of a modern rideshare driver named Rudra Pratama. He is wearing a clean, dark grey corporate polo shirt and smiling warmly. The background is a slightly blurred urban outdoor setting with a light-mode aesthetic, featuring bright natural daylight and subtle green and grey architectural elements to match the OpenJek brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBF3e2qEH96SjanEuc6S85ki2HChBwTDgrdOIXkH0nMCnD5I9yC0dNTIzc3ZuksWBnq4oBBGLK_ql9u7JDLovymklsYSwi9PPtfRax1pMvccMS_XXgPFaEMsL1sIPEtXvoGbIUQB09L4iECDbkxGnDzldxZUtg7naGuTxFUoWZdVILhhq4OxoSpfAtzQyLt3ynE5ZlenOUywnp1t9Chawz_RpJr4yM1CfT5UsPfCdTacS0cKT0cyqmH"/>
+</div>
+<div class="absolute bottom-0 right-0 bg-primary-container text-black w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:bg-primary-fixed-dim transition-colors border-2 border-[#121212]">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit" data-weight="fill" style="font-variation-settings: 'FILL' 1;">edit</span>
+</div>
+</div>
+<h2 class="mt-4 font-headline text-xl font-bold text-white tracking-tight">Rudra Pratama</h2>
+<p class="font-label text-sm text-[#8e9479] font-medium mt-0.5">Driver ID: OJ-9824</p>
+<div class="mt-4 pt-3 flex items-start gap-2 text-[#8e9479] max-w-sm text-center">
+<span class="material-symbols-outlined text-[18px] mt-0.5 shrink-0" data-icon="info">info</span>
+<p class="font-label text-xs leading-relaxed text-left text-secondary">Setiap perubahan data akan ditinjau dalam waktu 3-7 hari kerja.</p>
+</div>
+</section>
+<!-- Personal Information Section -->
+<section class="bg-[#1f2020] rounded-xl shadow-lg border border-[#2a2a2a] p-4 md:p-6 relative overflow-hidden">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline text-base font-bold text-white">Informasi Pribadi</h3>
+</div>
+<div class="space-y-3 relative z-10">
+<!-- Field: Full Name -->
+<div class="group border border-[#2e2f2f] rounded-lg p-3 bg-[#242525] hover:border-[#434933] transition-colors">
+<label class="font-label text-xs text-[#8e9479] mb-1 block">Nama Lengkap</label>
+<div class="flex justify-between items-center">
+<p class="font-body text-sm font-medium text-white">Rudra Pratama</p>
+<button class="text-primary-container hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_square">edit_square</span>
+</button>
+</div>
+</div>
+<!-- Field: Email -->
+<div class="group border border-[#2e2f2f] rounded-lg p-3 bg-[#242525] hover:border-[#434933] transition-colors">
+<label class="font-label text-xs text-[#8e9479] mb-1 block">Email</label>
+<div class="flex justify-between items-center">
+<p class="font-body text-sm font-medium text-white">rudra.pratama@email.com</p>
+<button class="text-primary-container hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_square">edit_square</span>
+</button>
+</div>
+</div>
+<!-- Field: Phone Number -->
+<div class="group border border-[#2e2f2f] rounded-lg p-3 bg-[#242525] hover:border-[#434933] transition-colors">
+<label class="font-label text-xs text-[#8e9479] mb-1 block">Nomor Telepon</label>
+<div class="flex justify-between items-center">
+<p class="font-body text-sm font-medium text-white">+62 812-3456-7890</p>
+<button class="text-primary-container hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_square">edit_square</span>
+</button>
+</div>
+</div>
+<!-- Field: Address -->
+<div class="group border border-[#2e2f2f] rounded-lg p-3 bg-[#242525] hover:border-[#434933] transition-colors">
+<label class="font-label text-xs text-[#8e9479] mb-1 block">Alamat</label>
+<div class="flex justify-between items-start">
+<p class="font-body text-sm font-medium text-white pr-4 leading-snug">Jl. Tech Boulevard No. 890, Jakarta</p>
+<button class="text-primary-container hover:opacity-80 transition-opacity mt-0.5">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_square">edit_square</span>
+</button>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-3 border-t border-[#2e2f2f] flex items-start gap-2 text-secondary">
+<span class="material-symbols-outlined text-[18px] mt-0.5 text-[#8e9479] shrink-0" data-icon="info">info</span>
+<p class="font-label text-xs leading-relaxed">Setiap perubahan data akan ditinjau dalam waktu 3-7 hari kerja.</p>
+</div>
+</section>
+<!-- Account Security Section -->
+<section class="bg-[#1f2020] rounded-xl shadow-lg border border-[#2a2a2a] p-4 md:p-6">
+<h3 class="font-headline text-base font-bold text-white mb-4">Keamanan Akun</h3>
+<div class="grid grid-cols-1 gap-3">
+<!-- Change Password -->
+<button class="flex items-center justify-between p-3.5 border border-[#2e2f2f] rounded-lg bg-[#242525] hover:bg-[#2a2a2a] hover:border-[#434933] transition-colors group active:scale-[0.99] w-full text-left">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#1b1c1c] flex items-center justify-center text-white group-hover:bg-primary-container group-hover:text-black transition-colors shrink-0">
+<span class="material-symbols-outlined text-[20px]" data-icon="lock">lock</span>
+</div>
+<div class="text-left">
+<p class="font-body text-sm font-semibold text-white">Ubah Kata Sandi</p>
+<p class="font-label text-xs text-secondary mt-0.5">Perbarui kata sandi Anda secara berkala</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary group-hover:text-primary-container transition-colors text-[20px]" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Two-Factor Authentication -->
+<div class="flex items-center justify-between p-3.5 border border-[#2e2f2f] rounded-lg bg-[#242525]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#1b1c1c] flex items-center justify-center text-primary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]" data-icon="fingerprint">fingerprint</span>
+</div>
+<div class="text-left">
+<p class="font-body text-sm font-semibold text-white">Biometrik Sidik Jari</p>
+<p class="font-label text-xs text-secondary mt-0.5">Gunakan sidik jari untuk masuk lebih cepat dan aman</p>
+</div>
+</div>
+<!-- Custom Lime Green Toggle Switch -->
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-[#353535] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-transparent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-black peer-checked:after:bg-black after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2.5 pb-safe bg-[#121212]/95 backdrop-blur-lg border-t border-[#2a2a2a] shadow-[0px_-4px_20px_rgba(0,0,0,0.5)]">
+<!-- Beranda (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="home">home</span>
+<span class="font-label text-xs font-medium">Beranda</span>
+</a>
+<!-- Riwayat (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="history">history</span>
+<span class="font-label text-xs font-medium">Riwayat</span>
+</a>
+<!-- Saldo (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="payments">payments</span>
+<span class="font-label text-xs font-medium">Saldo</span>
+</a>
+<!-- Akun (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-black rounded-xl px-4 py-1.5 active:scale-95 transition-all duration-200 shadow-sm" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="person" data-weight="fill" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label text-xs font-bold text-black">Akun</span>
+</a>
+</nav>
+<!-- Desktop Navigation (Hidden on mobile) -->
+<nav class="hidden md:flex fixed top-0 right-0 h-16 items-center px-6 gap-6 z-50">
+<a class="text-secondary hover:text-white transition-opacity font-headline text-sm font-semibold" href="#">Beranda</a>
+<a class="text-secondary hover:text-white transition-opacity font-headline text-sm font-semibold" href="#">Riwayat</a>
+<a class="text-secondary hover:text-white transition-opacity font-headline text-sm font-semibold" href="#">Saldo</a>
+<a class="text-primary-container font-bold border-b-2 border-primary-container pb-1 font-headline text-sm" href="#">Akun</a>
+</nav>
+</body></html>

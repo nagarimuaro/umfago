@@ -448,7 +448,7 @@ Pesan yang dipakai klien mobile:
 ## 8. Daftar Route (87 total)
 
 Sumber kebenaran adalah tabel route Gin di `internal/server/server.go`. Test
-`TestAPI_AllRoutesAreRegistered` (`internal/handlers/api_coverage_test.go`)
+`TestAPI_AllRoutesAreRegistered` (`test/api_coverage_test.go`)
 memaksa jumlah tercatat di sini sinkron dengan router aktual.
 
 ```
@@ -1186,8 +1186,8 @@ di-skip sehingga `go test ./...` tetap jalan tanpa database. Kredensial tidak
 pernah ditulis di dalam kode.
 
 ```bash
-export TEST_DATABASE_URL="host=localhost user=postgres password=... dbname=testing port=5432 sslmode=disable"
-go test ./internal/handlers/ -v
+export TEST_DATABASE_URL="host=localhost user=postgres password=... dbname=ojek_test port=5432 sslmode=disable TimeZone=Asia/Jakarta"
+go test ./test/ -v
 ```
 
 ---

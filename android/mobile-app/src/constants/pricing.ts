@@ -25,7 +25,11 @@ export const FareRules: Record<ServiceId, FareRule> = {
  * modelled as flat rupiah amounts.
  */
 export const AvailablePromos: readonly Promo[] = [
-  { code: 'HEMAT10', label: 'Potongan promo', amount: 1500 },
+  { code: 'HEMAT10', label: 'Potongan promo Rp 3.000', amount: 3000 },
+  { code: 'DISKON20', label: 'Diskon 20% Liburan', amount: 3000 },
+  { code: 'MAKANHEMAT', label: 'Gratis Ongkir Food', amount: 15000 },
+  { code: 'KIRIMHEMAT', label: 'Potongan Ongkir Kirim', amount: 5000 },
+  { code: 'PPOBCASHBACK', label: 'Cashback PPOB 10%', amount: 5000 },
 ] as const;
 
 /** Rupiah figures are quoted in whole hundreds. */

@@ -1,36 +1,46 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { DSText } from '@/components/ds/ds-text';
 import { IconButton } from '@/components/ds/icon-button';
-import { FontFamily, Palette, Sizes, Spacing } from '@/constants/design-system';
+import { Palette, Radius, Sizes, Spacing } from '@/constants/design-system';
 
-export function TopAppBar({ onSearch, onAvatar }: { onSearch?: () => void; onAvatar?: () => void }) {
+export function TopAppBar({
+  onNotification,
+  unreadCount = 0,
+}: {
+  onNotification?: () => void;
+  onSearch?: () => void;
+  onAvatar?: () => void;
+  unreadCount?: number;
+}) {
   return (
     <View style={styles.bar}>
       <View style={styles.left}>
-        <IconButton
-          icon="person"
-          accessibilityLabel="Akun saya"
-          onPress={onAvatar}
-          box={Sizes.avatar}
-          size={Sizes.iconMd}
-          color={Palette.secondary}
-          background={Palette.surfaceVariant}
-          style={styles.avatar}
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.logo}
+          contentFit="contain"
+          accessibilityLabel="UmfaGo"
         />
-        {/* `font-bold` in the markup overrides the headline-md 600 weight. */}
-        <DSText variant="headlineMd" color={Palette.primary} style={styles.wordmark}>
-          OpenJek
-        </DSText>
       </View>
 
-      <IconButton
-        icon="search"
-        accessibilityLabel="Cari"
-        onPress={onSearch}
-        size={Sizes.iconLg}
-        color={Palette.primary}
-      />
+      <View style={styles.right}>
+        <IconButton
+          icon="notifications"
+          accessibilityLabel="Notifikasi"
+          onPress={onNotification}
+          size={Sizes.iconLg}
+          color={Palette.primary}
+        />
+        {unreadCount > 0 ? (
+          <View style={styles.badgeDot}>
+            <DSText variant="labelXs" color="#ffffff" style={styles.badgeText}>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </DSText>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -47,14 +57,29 @@ const styles = StyleSheet.create({
   left: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
   },
-  avatar: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.outlineVariant,
+  logo: {
+    width: 108,
+    height: 36,
   },
-  wordmark: {
-    fontFamily: FontFamily.headline,
-    letterSpacing: -0.5,
+  right: {
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

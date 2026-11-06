@@ -53,7 +53,7 @@ export const ChatThreads: readonly ChatThread[] = [
   {
     id: 'thread-support',
     kind: 'support',
-    title: 'OpenJek Support',
+    title: 'UmfaGo Support',
     preview: 'How was your last trip?',
     timeLabel: 'Yesterday',
     unreadCount: 0,
@@ -81,4 +81,20 @@ export const ChatDateStamp = 'Today, 10:45 AM';
 export function threadById(id: string | undefined): ChatThread | null {
   if (!id) return null;
   return ChatThreads.find((thread) => thread.id === id) ?? null;
+}
+
+// Global set untuk melacak pesan yang sudah dibaca user
+const g = globalThis as any;
+if (!g.__OJ_READ_THREADS) {
+  g.__OJ_READ_THREADS = new Set<string>();
+}
+
+export function markThreadAsRead(threadId: string) {
+  if (!threadId) return;
+  g.__OJ_READ_THREADS.add(threadId);
+}
+
+export function isThreadRead(threadId: string): boolean {
+  if (!threadId) return false;
+  return g.__OJ_READ_THREADS.has(threadId);
 }

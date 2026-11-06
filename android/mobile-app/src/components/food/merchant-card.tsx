@@ -4,11 +4,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Card } from '@/components/ds/card';
 import { DSText } from '@/components/ds/ds-text';
 import { Icon, type IconName } from '@/components/ds/icon';
-import { IconButton } from '@/components/ds/icon-button';
 import { Pill } from '@/components/ds/pill';
 import { PromoBadge } from '@/components/food/promo-badge';
 import { formatDistance, formatRupiah } from '@/constants/booking';
-import { Opacity, Overlay, Palette, Sizes, Spacing } from '@/constants/design-system';
+import { Opacity, Overlay, Palette, Radius, Sizes, Spacing } from '@/constants/design-system';
 import { deliveryFee } from '@/lib/food';
 import type { FoodMerchant } from '@/types/food';
 
@@ -68,15 +67,11 @@ export function MerchantCard({ merchant, onPress }: MerchantCardProps) {
           ) : null}
 
           {merchant.isFavorite ? (
-            <IconButton
-              icon="favorite"
-              accessibilityLabel={`${merchant.name} is saved to favorites`}
-              box={Sizes.buttonCircle}
-              size={Sizes.iconMd}
-              background={Overlay.onImageSurface}
-              disabled
-              style={styles.favorite}
-            />
+            <View
+              style={[styles.favorite, styles.favoriteBadge]}
+              accessibilityLabel={`${merchant.name} is saved to favorites`}>
+              <Icon name="favorite" size={Sizes.iconMd} color={Palette.error} />
+            </View>
           ) : null}
         </View>
 
@@ -137,6 +132,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Spacing.sm,
     right: Spacing.sm,
+  },
+  favoriteBadge: {
+    width: Sizes.buttonCircle,
+    height: Sizes.buttonCircle,
+    borderRadius: Radius.full,
+    backgroundColor: Overlay.onImageSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   body: {
     padding: Spacing.md,

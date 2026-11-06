@@ -193,6 +193,11 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		promoCode = req.VoucherCode
 	}
 
+	serviceType := req.ServiceType
+	if serviceType == "" {
+		serviceType = "ride"
+	}
+
 	order := models.Order{
 		UUID:           uuid.New().String(),
 		RiderID:        userID,
@@ -208,6 +213,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		FareAmount:     quote.Total,
 		PaymentMethod:  models.PaymentMethod(req.PaymentMethod),
 		VehicleType:    vehicleType,
+		ServiceType:    serviceType,
 		VoucherCode:    models.NormalizeCode(promoCode),
 	}
 
@@ -969,8 +975,36 @@ func (h *OrderHandler) GetOrderHistory(c *gin.Context) {
 		return
 	}
 
+	// Hitung pesan unread untuk tiap order milik user yang sedang login
+	unreadMap := make(map[string]int)
+	if len(orders) > 0 {
+		var uuids []string
+		for _, o := range orders {
+			if o.UUID != "" {
+				uuids = append(uuids, o.UUID)
+			}
+		}
+		if len(uuids) > 0 {
+			type UnreadStat struct {
+				OrderUUID string `gorm:"column:order_uuid"`
+				Count     int    `gorm:"column:count"`
+			}
+			var stats []UnreadStat
+			_ = h.db.Model(&models.ChatMessage{}).
+				Select("order_uuid, count(*) as count").
+				Where("order_uuid IN ? AND receiver_id = ? AND is_read = false", uuids, userID).
+				Group("order_uuid").
+				Scan(&stats).Error
+
+			for _, s := range stats {
+				unreadMap[s.OrderUUID] = s.Count
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"orders": orders,
+		"orders":       orders,
+		"unread_chats": unreadMap,
 		"meta": gin.H{
 			"page":     page,
 			"per_page": perPage,

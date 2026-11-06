@@ -44,10 +44,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: Radius.base,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Brand.cardStroke,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    borderWidth: 0,
     backgroundColor: Palette.surfaceContainerLow,
   },
   pressed: {

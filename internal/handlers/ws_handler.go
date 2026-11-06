@@ -52,11 +52,20 @@ func NewWebSocketHandler(
 				if origin == "" {
 					return true
 				}
-				_, ok := allowed[strings.ToLower(origin)]
-				if !ok {
-					log.Printf("[WS] Rejected origin: %s", origin)
+				low := strings.ToLower(origin)
+				if _, ok := allowed[low]; ok {
+					return true
 				}
-				return ok
+				// Di development, izinkan origin localhost atau 127.0.0.1 dari browser/Expo/Vite
+				if strings.HasPrefix(low, "http://localhost:") ||
+					strings.HasPrefix(low, "https://localhost:") ||
+					strings.HasPrefix(low, "http://127.0.0.1:") ||
+					strings.HasPrefix(low, "https://127.0.0.1:") ||
+					low == "http://localhost" || low == "http://127.0.0.1" {
+					return true
+				}
+				log.Printf("[WS] Rejected origin: %s", origin)
+				return false
 			},
 		},
 	}

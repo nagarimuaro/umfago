@@ -18,6 +18,7 @@ const (
 	TxTypeFee        TransactionType = "FEE"        // potongan platform yang menjadi pendapatan perusahaan
 	TxTypeBonus      TransactionType = "BONUS"      // bonus dari admin ke driver
 	TxTypeDisbursed  TransactionType = "DISBURSED"  // pencairan saldo driver oleh keuangan
+	TxTypeTransfer   TransactionType = "TRANSFER"   // transfer saldo antar pengguna
 
 	// TxTypeEscrow dan TxTypeEscrowRelease menandai dana penumpang yang sedang
 	// dititipkan di akun perusahaan antara saat order dibuat dan saat order

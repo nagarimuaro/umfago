@@ -141,11 +141,17 @@ func (p *DriverProfile) MaskedBankAccountNumber() string {
 }
 
 type MerchantProfile struct {
-	ID              uint   `gorm:"primaryKey" json:"id"`
-	UserID          uint   `gorm:"not null;uniqueIndex" json:"user_id"`
-	BusinessName    string `gorm:"type:varchar(100);not null" json:"business_name"`
-	BusinessAddress string `gorm:"type:text" json:"business_address"`
-	Category        string `gorm:"type:varchar(50)" json:"category"`
+	ID              uint           `gorm:"primaryKey" json:"id"`
+	UserID          uint           `gorm:"not null;uniqueIndex" json:"user_id"`
+	BusinessName    string         `gorm:"type:varchar(100);not null" json:"business_name"`
+	BusinessAddress string         `gorm:"type:text" json:"business_address"`
+	Category        string         `gorm:"type:varchar(50)" json:"category"`
+	Lat             float64        `gorm:"default:0" json:"lat"`
+	Lon             float64        `gorm:"default:0" json:"lon"`
+	LogoURL         string         `gorm:"type:varchar(500)" json:"logo_url"`
+	Rating          float64        `gorm:"default:4.8" json:"rating"`
+	ReviewCount     int            `gorm:"default:0" json:"review_count"`
+	DistanceKm      float64        `gorm:"-" json:"distance_km,omitempty"`
 	// IsActive — merchant sudah disetujui back-office dan boleh berjualan.
 	// Nilai awalnya false: profil yang baru dibuat sendiri oleh pemiliknya
 	// harus melewati persetujuan dulu, bukan langsung tampil ke pembeli.

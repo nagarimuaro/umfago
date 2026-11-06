@@ -3,7 +3,7 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
-const backendTarget = 'http://localhost:8080';
+const backendTarget = process.env.VITE_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:8080';
 
 export default defineConfig({
 	plugins: [

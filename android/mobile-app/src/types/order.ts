@@ -81,6 +81,8 @@ export type Driver = {
   photo: string;
   /** Minutes until the driver reaches the pickup point. */
   etaMinutes: number;
+  lat?: number;
+  lon?: number;
 };
 
 export type TripStatus = 'searching' | 'pickup' | 'onTrip' | 'completed' | 'cancelled';

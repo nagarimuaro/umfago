@@ -197,6 +197,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"id":              user.ID,
 			"name":            user.Name,
 			"email":           user.Email,
+			"balance":         user.Balance,
 			"active_role":     user.RoleCode,
 			"available_roles": availableRoles,
 		},

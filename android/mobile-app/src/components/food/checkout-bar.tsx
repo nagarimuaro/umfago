@@ -17,12 +17,13 @@ import { FoodCheckoutCopy } from '@/constants/food-checkout';
 export type CheckoutBarProps = {
   /** The grand total, repeated from the payment summary above. */
   total: number;
+  paymentMethod?: 'wallet' | 'cash';
   /** Absent while no order-tracking flow exists, which draws the button disabled. */
   onPlaceOrder?: () => void;
 };
 
 /**
- * The fixed bar at the foot of the checkout: the total, the wallet paying it, and the
+ * The fixed bar at the foot of the checkout: the total, the wallet/cash paying it, and the
  * button that commits the order.
  *
  * The design pins this with `fixed bottom-0 ... pb-safe`, so it docks over the scrolling
@@ -30,9 +31,10 @@ export type CheckoutBarProps = {
  * bespoke pressable rather than the shared `Button`: the design draws headline-bold 16pt
  * text in `on-surface` on a lime fill, which no `Button` variant renders.
  */
-export function CheckoutBar({ total, onPlaceOrder }: CheckoutBarProps) {
+export function CheckoutBar({ total, paymentMethod = 'wallet', onPlaceOrder }: CheckoutBarProps) {
   const insets = useSafeAreaInsets();
   const amount = formatRupiah(total);
+  const isCash = paymentMethod === 'cash';
 
   return (
     /* Absolute is required here: the design fixes the bar over the page it belongs to. */
@@ -47,12 +49,12 @@ export function CheckoutBar({ total, onPlaceOrder }: CheckoutBarProps) {
 
         <View style={styles.wallet}>
           <Icon
-            name="account-balance-wallet"
+            name={isCash ? 'payments' : 'account-balance-wallet'}
             size={Sizes.iconXs}
             color={Palette.onSurfaceVariant}
           />
           <DSText variant="labelSm" color={Palette.onSurfaceVariant}>
-            {FoodCheckoutCopy.paymentName}
+            {isCash ? 'Tunai' : FoodCheckoutCopy.paymentName}
           </DSText>
         </View>
       </View>

@@ -206,6 +206,7 @@ func (h *HistoryHandler) CustomerWalletHistory(c *gin.Context) {
 		models.TxTypePayment,
 		models.TxTypeRefund,
 		models.TxTypeWithdrawal,
+		models.TxTypeTransfer,
 	})
 }
 

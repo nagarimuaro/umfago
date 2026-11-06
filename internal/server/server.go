@@ -72,6 +72,7 @@ func NewServer() *Server {
 		&models.Promo{},
 		&models.PromoUsage{},
 		&models.Notification{},
+		&models.UserAddress{},
 		&models.Product{},
 		&models.ProductEvent{},
 		&models.ServiceCatalog{},
@@ -184,8 +185,10 @@ func NewServer() *Server {
 	promoHandler := handlers.NewPromoHandler(database)
 	reportHandler := handlers.NewReportHandler(database)
 	enterpriseHandler := handlers.NewEnterpriseHandler(database, locRepo)
+	userAddressHandler := handlers.NewUserAddressHandler(database)
 
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 	r.HandleMethodNotAllowed = true
 
 	// ── Global Handlers untuk route/method yang tidak ada ─────────────────
@@ -221,6 +224,7 @@ func NewServer() *Server {
 		public.POST("/register", authHandler.Register)
 		public.POST("/login", authHandler.Login)
 		public.POST("/refresh", authHandler.Refresh)
+		public.GET("/promos", promoHandler.ListCustomer)
 	}
 
 	// ── Protected: semua user yang sudah login ────────────────────────
@@ -245,6 +249,7 @@ func NewServer() *Server {
 		protected.POST("/orders/:uuid/rate", orderHandler.RateOrder)
 		protected.POST("/orders/:uuid/chat", chatHandler.SendMessage)
 		protected.GET("/orders/:uuid/chat", chatHandler.GetHistory)
+		protected.PUT("/orders/:uuid/chat/read", chatHandler.MarkAsRead)
 
 		// Notifikasi — cakupannya selalu user pada token.
 		protected.GET("/notifications", notificationHandler.List)
@@ -256,6 +261,16 @@ func NewServer() *Server {
 		// yang disaring adalah produknya, bukan pembacanya.
 		protected.GET("/products", productHandler.List)
 		protected.GET("/products/:id", productHandler.Get)
+
+		// Mitra merchant / resto sisi pelanggan
+		protected.GET("/merchants", merchantHandler.CustomerList)
+		protected.GET("/merchants/:id", merchantHandler.CustomerGet)
+
+		// Buku alamat tersimpan pelanggan
+		protected.GET("/user/addresses", userAddressHandler.List)
+		protected.POST("/user/addresses", userAddressHandler.Create)
+		protected.PUT("/user/addresses/:id", userAddressHandler.Update)
+		protected.DELETE("/user/addresses/:id", userAddressHandler.Delete)
 
 		// Unggah berkas (foto produk).
 		protected.POST("/uploads", uploadHandler.Upload)
@@ -271,7 +286,9 @@ func NewServer() *Server {
 		// Wallet Routes
 		protected.GET("/wallet", walletHandler.GetBalance)
 		protected.POST("/wallet/deposit", walletHandler.Deposit)
+		protected.POST("/wallet/transfer", walletHandler.Transfer)
 		protected.POST("/wallet/withdraw", walletHandler.Withdraw)
+		protected.POST("/wallet/ppob", walletHandler.PayPPOB)
 		protected.GET("/wallet/history", walletHandler.GetHistory)
 
 		// Profile Routes
@@ -279,6 +296,9 @@ func NewServer() *Server {
 		protected.PUT("/profile", profileHandler.UpdateUserProfile)
 		protected.PUT("/profile/driver", middleware.RequireDriver(), profileHandler.UpdateDriverProfile)
 		protected.PUT("/profile/merchant", middleware.RequireRole(models.RoleMerchant), profileHandler.UpdateMerchantProfile)
+
+		// Support Tickets (Customer & Driver)
+		protected.POST("/support/tickets", enterpriseHandler.CreateTicket)
 	}
 
 	// ── Riwayat & KYC per peran ───────────────────────────────────────

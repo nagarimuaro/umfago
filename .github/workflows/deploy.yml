@@ -1,0 +1,146 @@
+name: "CI/CD UmfaGo to VPS"
+
+"on":
+  push:
+    branches:
+      - master
+      - main
+    # Jangan jalankan deployment jika perubahan hanya pada aplikasi mobile Android
+    paths-ignore:
+      - 'android/**'
+      - '**.md'
+      - '.gitignore'
+      - 'start.sh'
+      - 'start.ps1'
+      - 'start-web.sh'
+      - 'start-web.ps1'
+  workflow_dispatch: {}
+
+jobs:
+  # ── 1. Test & Build Artifacts ─────────────────────────────────────────────
+  build-and-test:
+    name: "Test & Build (Backend & Admin)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      # Setup Go
+      - name: "Setup Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      # Setup Node.js untuk Dashboard Admin
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/admin/package-lock.json
+
+      # Jalankan Unit Tests Go Backend
+      - name: "Run Backend Tests"
+        run: |
+          go test -v ./test/ -run "Test[A-Z].*"
+
+      # Typecheck & Build Dashboard Admin SvelteKit
+      - name: "Build Admin Dashboard"
+        run: |
+          cd frontend/admin
+          npm ci
+          npm run check
+          npm run build
+
+      # Compile Go Backend Binary untuk Target Linux Server (amd64)
+      - name: "Compile Backend Binary (Linux AMD64)"
+        run: |
+          mkdir -p release/bin release/admin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o release/bin/umfago-api ./cmd/api
+          cp -r frontend/admin/build/* release/admin/
+          cp -r deploy release/
+
+      # Kompres paket rilis (tanpa folder android)
+      - name: "Package Release Bundle"
+        run: |
+          tar -czf release.tar.gz -C release .
+
+      # Simpan artifact untuk stage deploy
+      - name: "Upload Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: release.tar.gz
+          retention-days: 1
+
+  # ── 2. Deploy ke VPS via SSH ──────────────────────────────────────────────
+  deploy-to-vps:
+    name: "Deploy to VPS"
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: "Download Artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+
+      - name: "Setup SSH Key & Known Hosts"
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST: ${{ secrets.VPS_HOST }}
+          PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p $PORT -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: "Copy Release Bundle to VPS"
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          PORT: ${{ secrets.VPS_PORT || '22' }}
+          TARGET_DIR: ${{ secrets.VPS_TARGET_DIR || '/var/www/umfago' }}
+        run: |
+          scp -P $PORT -i ~/.ssh/id_rsa release.tar.gz ${USER}@${HOST}:/tmp/umfago-release.tar.gz
+
+      - name: "Execute Remote Deployment on VPS"
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            TARGET_DIR="${{ secrets.VPS_TARGET_DIR || '/var/www/umfago' }}"
+
+            echo "[1/5] Memastikan direktori target: $TARGET_DIR..."
+            sudo mkdir -p $TARGET_DIR/bin $TARGET_DIR/admin $TARGET_DIR/uploads $TARGET_DIR/deploy
+
+            echo "[2/5] Mengekstrak paket rilis baru..."
+            sudo tar -xzf /tmp/umfago-release.tar.gz -C $TARGET_DIR
+            sudo rm -f /tmp/umfago-release.tar.gz
+            sudo chmod +x $TARGET_DIR/bin/umfago-api
+
+            echo "[3/5] Memastikan permissions berkas..."
+            sudo chown -R www-data:www-data $TARGET_DIR
+
+            echo "[4/5] Memperbarui dan merestart service backend..."
+            if [ -f "$TARGET_DIR/deploy/umfago-backend.service" ]; then
+              sudo cp $TARGET_DIR/deploy/umfago-backend.service /etc/systemd/system/
+              sudo systemctl daemon-reload
+              sudo systemctl enable umfago-backend
+            fi
+            sudo systemctl restart umfago-backend
+
+            echo "[5/5] Reload Nginx..."
+            if sudo nginx -t >/dev/null 2>&1; then
+              sudo systemctl reload nginx
+            fi
+
+            echo "[SUCCESS] Deployment UmfaGo berhasil diperbarui di VPS!"

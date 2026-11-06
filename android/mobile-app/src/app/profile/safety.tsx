@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ds/button';
@@ -21,7 +21,7 @@ const SAFETY_FEATURES: SafetyItem[] = [
     id: 'sos',
     icon: 'call',
     title: 'Tombol Darurat (SOS 24/7)',
-    desc: 'Langsung hubungi call center kepolisian dan tim respons darurat OpenJek dalam satu sentuhan.',
+    desc: 'Langsung hubungi call center kepolisian dan tim respons darurat UmfaGo dalam satu sentuhan.',
   },
   {
     id: 'share',
@@ -66,7 +66,7 @@ export default function SafetyCenterScreen() {
                 Perlindungan Utama Anda
               </DSText>
               <DSText variant="bodySm" color="rgba(255,255,255,0.85)">
-                Keamanan dan kenyamanan Anda adalah prioritas nomor satu OpenJek.
+                Keamanan dan kenyamanan Anda adalah prioritas nomor satu UmfaGo.
               </DSText>
             </View>
           </View>
@@ -101,7 +101,23 @@ export default function SafetyCenterScreen() {
           variant="danger"
           size="lg"
           icon="call"
-          onPress={() => {}}
+          onPress={() => {
+            Alert.alert(
+              'Panggilan Darurat SOS',
+              'Pilih layanan darurat yang ingin Anda hubungi segera:',
+              [
+                { text: 'Batal', style: 'cancel' },
+                {
+                  text: 'Panggilan Darurat 112',
+                  onPress: () => Linking.openURL('tel:112').catch(() => {}),
+                },
+                {
+                  text: 'Polisi 110',
+                  onPress: () => Linking.openURL('tel:110').catch(() => {}),
+                },
+              ],
+            );
+          }}
         />
       </ScrollView>
     </SafeAreaView>

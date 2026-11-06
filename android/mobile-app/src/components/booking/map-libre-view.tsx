@@ -17,6 +17,9 @@ interface MapLibreOSMViewProps {
   pinLocked?: boolean;
   confirming?: boolean;
   onUnlock?: () => void;
+  driverCoords?: { lat: number; lon: number } | null;
+  driverVehicleType?: 'car' | 'motorcycle';
+  customRouteCoords?: [number, number][] | null;
 }
 
 const FallbackCenter = { lat: -0.664159, lon: 100.939844 };
@@ -33,6 +36,9 @@ export function MapLibreOSMView({
   pinLocked = false,
   confirming = false,
   onUnlock,
+  driverCoords,
+  driverVehicleType = 'motorcycle',
+  customRouteCoords,
 }: MapLibreOSMViewProps) {
   const { pickup, destination, route } = useBooking();
   const webViewRef = useRef<WebView<object>>(null);
@@ -60,6 +66,9 @@ body, html, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e
   box-shadow: 0 4px 12px rgba(0,0,0,0.35); display: flex; align-items: center;
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
+.mk-driver { width: 36px; height: 36px; border-radius: 50%; background: #1a1a26;
+  border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; }
 </style>
 </head><body>
 <div id="map"></div>
@@ -80,8 +89,11 @@ const map = new maplibregl.Map({
 });
 
 function mk(cls, txt) { const el = document.createElement('div'); el.className = 'mk ' + cls; el.innerText = txt; return el; }
+function mkDriver(icon) { const el = document.createElement('div'); el.className = 'mk-driver'; el.innerText = icon || '🏍️'; return el; }
+
 const markerA = new maplibregl.Marker({ element: mk('mk-a', 'A') });
 const markerB = new maplibregl.Marker({ element: mk('mk-b', 'B') });
+const markerDriver = new maplibregl.Marker({ element: mkDriver('${driverVehicleType === 'car' ? '🚗' : '🏍️'}') });
 const empty = { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } };
 
 map.on('moveend', () => {
@@ -92,6 +104,7 @@ map.on('moveend', () => {
 window.setState = function (s) {
   if (s.pickup) markerA.setLngLat(s.pickup).addTo(map); else markerA.remove();
   if (s.dest) markerB.setLngLat(s.dest).addTo(map); else markerB.remove();
+  if (s.driver) markerDriver.setLngLat(s.driver).addTo(map); else markerDriver.remove();
   const src = map.getSource('route');
   if (src) src.setData(s.route && s.route.length > 1
     ? { type: 'Feature', geometry: { type: 'LineString', coordinates: s.route } } : empty);
@@ -112,7 +125,7 @@ map.on('load', () => {
 });
 </script>
 </body></html>`,
-    [initial]
+    [initial, driverVehicleType]
   );
 
   const inject = useCallback((js: string) => {
@@ -128,13 +141,15 @@ map.on('load', () => {
   // Sinkronkan marker & garis rute setiap koordinat atau rute berubah.
   useEffect(() => {
     if (!ready) return;
+    const effectiveRoute = customRouteCoords ?? coords ?? null;
     const state = {
       pickup: pLat != null && pLon != null ? [pLon, pLat] : null,
       dest: dLat != null && dLon != null ? [dLon, dLat] : null,
-      route: coords ?? null,
+      driver: driverCoords ? [driverCoords.lon, driverCoords.lat] : null,
+      route: effectiveRoute,
     };
     inject(`window.setState(${JSON.stringify(state)})`);
-  }, [ready, pLat, pLon, dLat, dLon, coords, inject]);
+  }, [ready, pLat, pLon, dLat, dLon, coords, customRouteCoords, driverCoords, inject]);
 
   // Kamera: pada peta interaktif, ikuti titik yang dipilih lewat pencarian/GPS
   // (titik hasil geser pin sudah berada di tengah, jadi tidak digerakkan ulang).
@@ -160,15 +175,22 @@ map.on('load', () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, interactive, pinLocked, activeTarget, inject]);
 
-  // Peta non-interaktif (searching/trip): tampilkan seluruh rute.
+  // Peta non-interaktif (searching/trip): tampilkan seluruh rute atau titik driver + jemput
   useEffect(() => {
     if (!ready || interactive) return;
-    const all =
-      coords && coords.length > 1
-        ? coords
-        : [pLon != null && pLat != null ? [pLon, pLat] : null, dLon != null && dLat != null ? [dLon, dLat] : null].filter(Boolean);
-    if (all.length > 0) inject(`window.fitAll(${JSON.stringify(all)})`);
-  }, [ready, interactive, coords, pLat, pLon, dLat, dLon, inject]);
+    const effectiveRoute = customRouteCoords ?? coords;
+    if (effectiveRoute && effectiveRoute.length > 1) {
+      inject(`window.fitAll(${JSON.stringify(effectiveRoute)})`);
+      return;
+    }
+    const points: [number, number][] = [];
+    if (driverCoords) points.push([driverCoords.lon, driverCoords.lat]);
+    if (pLon != null && pLat != null) points.push([pLon, pLat]);
+    if (dLon != null && dLat != null) points.push([dLon, dLat]);
+    if (points.length > 0) {
+      inject(`window.fitAll(${JSON.stringify(points)})`);
+    }
+  }, [ready, interactive, coords, customRouteCoords, pLat, pLon, dLat, dLon, driverCoords, inject]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {

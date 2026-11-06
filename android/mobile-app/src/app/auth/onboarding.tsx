@@ -47,7 +47,7 @@ const ONBOARDING_SLIDES: SlideItem[] = [
     image: require('@/assets/spalsh/spalsh3.png'),
     tag: 'E-WALLET & PROMO',
     title: 'Bayar Mudah & Banyak Diskon',
-    subtitle: 'Gunakan saldo OpenJek Wallet dan nikmati voucher hemat setiap hari.',
+    subtitle: 'Gunakan saldo UmfaGo Wallet dan nikmati voucher hemat setiap hari.',
   },
 ];
 

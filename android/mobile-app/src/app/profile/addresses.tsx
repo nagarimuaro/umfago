@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -17,8 +19,12 @@ import { DSText } from '@/components/ds/ds-text';
 import { Icon } from '@/components/ds/icon';
 import { IconButton } from '@/components/ds/icon-button';
 import { Brand, Palette, Radius, Spacing } from '@/constants/design-system';
+import { useAuth } from '@/hooks/use-auth';
+import { ENV } from '@/constants/env';
 
-interface SavedAddress {
+const BACKEND_URL = ENV.API_URL;
+
+export interface SavedAddress {
   id: string;
   label: string;
   address: string;
@@ -44,31 +50,123 @@ const INITIAL_ADDRESSES: SavedAddress[] = [
 ];
 
 export default function SavedAddressesScreen() {
+  const { token } = useAuth();
   const [addresses, setAddresses] = useState<SavedAddress[]>(INITIAL_ADDRESSES);
+  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
   const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleAdd = () => {
+  const fetchAddresses = useCallback(async () => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/user/addresses`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.addresses) && data.addresses.length > 0) {
+        setAddresses(
+          data.addresses.map((a: any) => ({
+            id: String(a.id),
+            label: a.label,
+            address: a.address,
+            note: a.note || '',
+            icon: a.icon === 'home' || a.icon === 'work' ? a.icon : 'location-on',
+          })),
+        );
+      }
+    } catch {
+      // Fallback ke local
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAddresses();
+  }, [fetchAddresses]);
+
+  const handleAdd = async () => {
     if (!label.trim() || !address.trim()) {
       Alert.alert('Perhatian', 'Label dan alamat lengkap wajib diisi.');
       return;
     }
 
-    const newItem: SavedAddress = {
-      id: Date.now().toString(),
-      label: label.trim(),
-      address: address.trim(),
-      note: note.trim(),
-      icon: 'location-on',
-    };
+    const trimmedLabel = label.trim();
+    const trimmedAddress = address.trim();
+    const trimmedNote = note.trim();
+    const iconType =
+      trimmedLabel.toLowerCase().includes('rumah')
+        ? 'home'
+        : trimmedLabel.toLowerCase().includes('kantor') || trimmedLabel.toLowerCase().includes('kerja')
+        ? 'work'
+        : 'location-on';
 
-    setAddresses([...addresses, newItem]);
-    setLabel('');
-    setAddress('');
-    setNote('');
-    setModalOpen(false);
+    setSaving(true);
+    try {
+      if (token) {
+        const res = await fetch(`${BACKEND_URL}/api/user/addresses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            label: trimmedLabel,
+            address: trimmedAddress,
+            note: trimmedNote,
+            icon: iconType,
+          }),
+        });
+
+        if (res.ok) {
+          const resData = await res.json();
+          const created = resData.address;
+          if (created) {
+            setAddresses((prev) => [
+              {
+                id: String(created.id),
+                label: created.label,
+                address: created.address,
+                note: created.note || '',
+                icon: iconType,
+              },
+              ...prev,
+            ]);
+            setLabel('');
+            setAddress('');
+            setNote('');
+            setModalOpen(false);
+            return;
+          }
+        }
+      }
+
+      // Offline / fallback save
+      const newItem: SavedAddress = {
+        id: Date.now().toString(),
+        label: trimmedLabel,
+        address: trimmedAddress,
+        note: trimmedNote,
+        icon: iconType,
+      };
+      setAddresses((prev) => [newItem, ...prev]);
+      setLabel('');
+      setAddress('');
+      setNote('');
+      setModalOpen(false);
+    } catch {
+      Alert.alert('Gagal Menyimpan', 'Terjadi gangguan saat menyimpan ke server.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -77,7 +175,21 @@ export default function SavedAddressesScreen() {
       {
         text: 'Hapus',
         style: 'destructive',
-        onPress: () => setAddresses(addresses.filter((a) => a.id !== id)),
+        onPress: async () => {
+          setAddresses((prev) => prev.filter((a) => a.id !== id));
+          if (token) {
+            try {
+              await fetch(`${BACKEND_URL}/api/user/addresses/${id}`, {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+            } catch {
+              // Ignore
+            }
+          }
+        },
       },
     ]);
   };

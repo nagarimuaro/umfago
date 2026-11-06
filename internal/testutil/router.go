@@ -90,6 +90,7 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 	promoHandler := handlers.NewPromoHandler(db)
 	reportHandler := handlers.NewReportHandler(db)
 	enterpriseHandler := handlers.NewEnterpriseHandler(db, nil)
+	userAddressHandler := handlers.NewUserAddressHandler(db)
 
 	// Public
 	public := r.Group("/api")
@@ -97,6 +98,7 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		public.POST("/register", authHandler.Register)
 		public.POST("/login", authHandler.Login)
 		public.POST("/refresh", authHandler.Refresh)
+		public.GET("/promos", promoHandler.ListCustomer)
 	}
 
 	r.GET("/health", func(c *gin.Context) {
@@ -126,6 +128,7 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		protected.POST("/orders/:uuid/rate", orderHandler.RateOrder)
 		protected.POST("/orders/:uuid/chat", chatHandler.SendMessage)
 		protected.GET("/orders/:uuid/chat", chatHandler.GetHistory)
+		protected.PUT("/orders/:uuid/chat/read", chatHandler.MarkAsRead)
 
 		protected.POST("/fare/estimate", fareHandler.Estimate)
 		protected.POST("/promos/validate", middleware.RequireRole(models.RoleCustomer), promoHandler.Validate)
@@ -133,7 +136,9 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		// Wallet Routes
 		protected.GET("/wallet", walletHandler.GetBalance)
 		protected.POST("/wallet/deposit", walletHandler.Deposit)
+		protected.POST("/wallet/transfer", walletHandler.Transfer)
 		protected.POST("/wallet/withdraw", walletHandler.Withdraw)
+		protected.POST("/wallet/ppob", walletHandler.PayPPOB)
 		protected.GET("/wallet/history", walletHandler.GetHistory)
 
 		// Profile Routes
@@ -141,6 +146,8 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		protected.PUT("/profile", profileHandler.UpdateUserProfile)
 		protected.PUT("/profile/driver", middleware.RequireDriver(), profileHandler.UpdateDriverProfile)
 		protected.PUT("/profile/merchant", middleware.RequireRole(models.RoleMerchant), profileHandler.UpdateMerchantProfile)
+
+		protected.POST("/support/tickets", enterpriseHandler.CreateTicket)
 
 		// Notifikasi
 		protected.GET("/notifications", notificationHandler.List)
@@ -151,6 +158,16 @@ func SetupRouter(db *gorm.DB) (*gin.Engine, *auth.JWTService) {
 		// Katalog produk pelanggan
 		protected.GET("/products", productHandler.List)
 		protected.GET("/products/:id", productHandler.Get)
+
+		// Merchant / resto pelanggan
+		protected.GET("/merchants", merchantHandler.CustomerList)
+		protected.GET("/merchants/:id", merchantHandler.CustomerGet)
+
+		// Alamat tersimpan pelanggan
+		protected.GET("/user/addresses", userAddressHandler.List)
+		protected.POST("/user/addresses", userAddressHandler.Create)
+		protected.PUT("/user/addresses/:id", userAddressHandler.Update)
+		protected.DELETE("/user/addresses/:id", userAddressHandler.Delete)
 
 		// Unggah berkas
 		protected.POST("/uploads", uploadHandler.Upload)

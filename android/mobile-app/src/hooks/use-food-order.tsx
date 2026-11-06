@@ -74,7 +74,7 @@ export function FoodOrderProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const merchant = useMemo(
-    () => FoodMerchants.find((entry) => entry.id === state.merchantId) ?? null,
+    () => FoodMerchants.find((entry) => entry.id === state.merchantId) ?? FoodMerchants[0],
     [state.merchantId],
   );
 

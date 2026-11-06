@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"openjek-backend/internal/middleware"
 	"openjek-backend/internal/models"
@@ -296,4 +297,163 @@ func parseUintParam(c *gin.Context, name string) (uint, bool) {
 		return 0, false
 	}
 	return uint(val), true
+}
+
+// Transfer — POST /api/wallet/transfer
+// Transfer saldo sesama pengguna OpenJek menggunakan nomor HP atau email tujuan.
+func (h *WalletHandler) Transfer(c *gin.Context) {
+	senderID := c.GetUint(middleware.UserIDKey)
+
+	var req struct {
+		Recipient string  `json:"recipient" binding:"required"`
+		Amount    float64 `json:"amount" binding:"required,gt=0"`
+		Note      string  `json:"note"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Amount < 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Minimal transfer adalah Rp 10.000"})
+		return
+	}
+
+	target := strings.TrimSpace(req.Recipient)
+	var recipient models.User
+	if err := h.db.Where("email = ? OR phone = ?", target, target).First(&recipient).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Penerima tidak ditemukan. Pastikan email atau nomor HP sudah benar."})
+		return
+	}
+
+	if recipient.ID == senderID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan transfer ke akun sendiri."})
+		return
+	}
+
+	if !recipient.IsActive {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Akun penerima sedang tidak aktif."})
+		return
+	}
+
+	var sender models.User
+	if err := h.db.First(&sender, senderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pengirim tidak ditemukan"})
+		return
+	}
+
+	noteSender := req.Note
+	if noteSender == "" {
+		noteSender = fmt.Sprintf("Transfer ke %s (%s)", recipient.Name, target)
+	} else {
+		noteSender = fmt.Sprintf("Transfer ke %s: %s", recipient.Name, req.Note)
+	}
+
+	noteRecipient := req.Note
+	if noteRecipient == "" {
+		senderIdentifier := sender.Phone
+		if senderIdentifier == "" {
+			senderIdentifier = sender.Email
+		}
+		noteRecipient = fmt.Sprintf("Transfer dari %s (%s)", sender.Name, senderIdentifier)
+	} else {
+		noteRecipient = fmt.Sprintf("Transfer dari %s: %s", sender.Name, req.Note)
+	}
+
+	var debitTx *models.WalletTransaction
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		debitTx, err = h.wallet.Debit(tx, repository.Entry{
+			UserID: senderID,
+			Amount: req.Amount,
+			Type:   models.TxTypeTransfer,
+			Note:   noteSender,
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = h.wallet.Credit(tx, repository.Entry{
+			UserID: recipient.ID,
+			Amount: req.Amount,
+			Type:   models.TxTypeTransfer,
+			Note:   noteRecipient,
+		})
+		return err
+	})
+
+	if errors.Is(err, repository.ErrInsufficientBalance) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Saldo tidak mencukupi untuk transfer"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses transfer"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Transfer berhasil",
+		"new_balance": debitTx.BalanceAfter,
+		"recipient": gin.H{
+			"id":    recipient.ID,
+			"name":  recipient.Name,
+			"phone": recipient.Phone,
+			"email": recipient.Email,
+		},
+		"transaction": debitTx,
+	})
+}
+
+// PayPPOB — POST /api/wallet/ppob
+// Pembayaran transaksi PPOB (Pulsa, Paket Data, Token PLN, BPJS, PDAM, dll) menggunakan saldo OpenPay.
+func (h *WalletHandler) PayPPOB(c *gin.Context) {
+	userID := c.GetUint(middleware.UserIDKey)
+
+	var req struct {
+		Service     string  `json:"service" binding:"required"`
+		CustomerNo  string  `json:"customer_no" binding:"required"`
+		Amount      float64 `json:"amount" binding:"required,gt=0"`
+		ProductName string  `json:"product_name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	custNo := strings.TrimSpace(req.CustomerNo)
+	if custNo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor tujuan atau ID pelanggan tidak boleh kosong"})
+		return
+	}
+
+	note := fmt.Sprintf("PPOB %s: %s (%s)", req.Service, req.ProductName, custNo)
+
+	var debitTx *models.WalletTransaction
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		debitTx, err = h.wallet.Debit(tx, repository.Entry{
+			UserID: userID,
+			Amount: req.Amount,
+			Type:   models.TxTypePayment,
+			Note:   note,
+		})
+		return err
+	})
+
+	if errors.Is(err, repository.ErrInsufficientBalance) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Saldo OpenPay tidak mencukupi untuk pembayaran ini"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses pembayaran PPOB"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Pembayaran PPOB berhasil",
+		"new_balance": debitTx.BalanceAfter,
+		"transaction": debitTx,
+	})
 }

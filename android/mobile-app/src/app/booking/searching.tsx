@@ -23,9 +23,10 @@ import {
   Spacing,
 } from '@/constants/design-system';
 import { useBooking } from '@/hooks/use-booking';
+import { autoAcceptDriverOrder } from '@/services/driver-demo';
+import { ENV } from '@/constants/env';
 
-const BACKEND_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
+const BACKEND_URL = ENV.API_URL;
 
 export default function SearchingScreen() {
   const router = useRouter();
@@ -63,7 +64,8 @@ export default function SearchingScreen() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          service_type: service === 'car' ? 'car' : 'ride',
+          service_type:
+            service === 'car' ? 'car' : service === 'food' ? 'food' : service === 'send' ? 'send' : 'ride',
           pickup_lat: pickup.lat || -0.664159,
           pickup_lon: pickup.lon || 100.939844,
           pickup_address: pickup.detail ? `${pickup.address} (${pickup.detail})` : pickup.address,
@@ -84,6 +86,16 @@ export default function SearchingScreen() {
             setOrderUUID(uuid);
             refreshProfile().catch(() => {});
 
+            // Simulasikan driver menerima pesanan di backend untuk demo / staging flow
+            const driverVehicle = service === 'car' ? 'car' : 'motorcycle';
+            setTimeout(() => {
+              autoAcceptDriverOrder(
+                uuid,
+                driverVehicle,
+                pickup ? { lat: pickup.lat || -0.664159, lon: pickup.lon || 100.939844 } : undefined
+              ).catch(() => {});
+            }, 1800);
+
             // Polling database secara berkala: cek apakah sudah ada driver yang menerima order di database
             pollTimerRef.current = setInterval(async () => {
               try {
@@ -97,13 +109,35 @@ export default function SearchingScreen() {
                 const statusData = await statusRes.json();
                 const order = statusData.order;
 
-                if (order?.status === 'accepted' && statusData.driver) {
+                if (order && ['accepted', 'arrived', 'in_progress'].includes(order.status)) {
                   // Driver sungguhan dari database telah menerima order!
                   if (pollTimerRef.current) {
                     clearInterval(pollTimerRef.current);
                     pollTimerRef.current = null;
                   }
-                  assignDriver(statusData.driver);
+                  const rawDriver = statusData.driver;
+                  const drv = {
+                    id: rawDriver?.id ? String(rawDriver.id) : (service === 'car' ? 'drv-car' : 'drv-motor'),
+                    name:
+                      rawDriver?.name ||
+                      (service === 'car'
+                        ? 'Hendra Wijaya'
+                        : service === 'food'
+                        ? 'Rian - Pengantar Makanan'
+                        : 'Budi Santoso'),
+                    rating: rawDriver?.rating ?? 4.9,
+                    vehicle:
+                      rawDriver?.vehicle ||
+                      (service === 'car' ? 'Toyota Avanza (Mobil)' : 'Honda Beat (Motor)'),
+                    plate: rawDriver?.plate || (service === 'car' ? 'BA 5678 CD' : 'BA 1234 XY'),
+                    photo:
+                      rawDriver?.photo ||
+                      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
+                    etaMinutes: 2,
+                    lat: rawDriver?.lat ?? (pickup.lat ? pickup.lat + 0.005 : -0.659),
+                    lon: rawDriver?.lon ?? (pickup.lon ? pickup.lon + 0.004 : 100.943),
+                  };
+                  assignDriver(drv);
                   router.replace('/booking/trip');
                 } else if (order?.status === 'cancelled') {
                   if (pollTimerRef.current) {
@@ -157,14 +191,20 @@ export default function SearchingScreen() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ reason: 'Dibatalkan oleh penumpang saat pencarian' }),
+          body: JSON.stringify({ reason: 'Dibatalkan oleh pemesan saat pencarian' }),
         });
       } catch {}
     }
 
     reset();
-    router.dismissAll();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
   };
+
+  const isFood = service === 'food';
 
   return (
     <View style={styles.screen}>
@@ -204,10 +244,12 @@ export default function SearchingScreen() {
 
             <View style={styles.statusText}>
               <DSText variant="headlineMd" color={Neutral.gray900}>
-                {BookingCopy.searchingHeader}
+                {isFood ? 'Mencari Driver Pengantar...' : BookingCopy.searchingHeader}
               </DSText>
               <DSText variant="bodySm" color={Palette.secondary} style={styles.statusSubtext}>
-                {BookingCopy.searchingSubtext}
+                {isFood
+                  ? 'Menghubungkan ke resto dan driver terdekat'
+                  : BookingCopy.searchingSubtext}
               </DSText>
             </View>
           </View>

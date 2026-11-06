@@ -58,7 +58,7 @@ export default function LoginScreen() {
               Masuk UmfaGo
             </DSText>
             <DSText variant="bodyMd" color={Palette.secondary}>
-              {/* Khusus akun Pengguna / Penumpang OpenJek */}
+              {/* Khusus akun Pengguna / Penumpang UmfaGo */}
             </DSText>
           </View>
 

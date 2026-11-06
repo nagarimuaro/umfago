@@ -261,6 +261,50 @@ func (h *EnterpriseHandler) ListFleet(c *gin.Context) {
 
 // ── Support Tickets & Dispute Management (§14) ──────────────────────────────
 
+func (h *EnterpriseHandler) CreateTicket(c *gin.Context) {
+	userID := c.GetUint(middleware.UserIDKey)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req struct {
+		Category    string `json:"category"`
+		Subject     string `json:"subject" binding:"required"`
+		Description string `json:"description" binding:"required"`
+		OrderUUID   string `json:"order_uuid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	category := req.Category
+	if category == "" {
+		category = "ride_issue"
+	}
+
+	ticket := models.SupportTicket{
+		UserID:      userID,
+		OrderUUID:   req.OrderUUID,
+		Category:    category,
+		Priority:    "medium",
+		Status:      "open",
+		Subject:     req.Subject,
+		Description: req.Description,
+	}
+
+	if err := h.db.Create(&ticket).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ticket"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Ticket created successfully",
+		"ticket":  ticket,
+	})
+}
+
 func (h *EnterpriseHandler) ListTickets(c *gin.Context) {
 	page, perPage, offset := paginate(c)
 	var total int64

@@ -15,9 +15,9 @@ import type {
   ServiceId,
   TripStatus,
 } from '@/types/order';
+import { ENV } from '@/constants/env';
 
-const BACKEND_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
+const BACKEND_URL = ENV.API_URL;
 
 type BookingState = {
   pickup: Place | null;
@@ -58,6 +58,13 @@ type BookingContextValue = BookingState & {
   setDestination: (place: Place | null) => void;
   setService: (service: ServiceId) => void;
   setPayment: (payment: PaymentMethodId) => void;
+  startBooking: (params: {
+    pickup: Place;
+    destination: Place;
+    service: ServiceId;
+    payment: PaymentMethodId;
+    promo?: Promo | null;
+  }) => void;
   applyPromo: (code: string) => Promise<PromoResult>;
   clearPromo: () => void;
   setOrderUUID: (uuid: string | null) => void;
@@ -214,6 +221,29 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const startBooking = useCallback(
+    (params: {
+      pickup: Place;
+      destination: Place;
+      service: ServiceId;
+      payment: PaymentMethodId;
+      promo?: Promo | null;
+    }) => {
+      setState({
+        pickup: params.pickup,
+        destination: params.destination,
+        service: params.service,
+        payment: params.payment,
+        promo: params.promo ?? null,
+        route: null,
+        driver: null,
+        orderUUID: null,
+        status: 'searching',
+      });
+    },
+    []
+  );
+
   // Integrasi kupon diskon langsung dengan validasi backend (/api/promos/validate)
   const applyPromo = useCallback(
     async (code: string): Promise<PromoResult> => {
@@ -311,6 +341,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       setDestination,
       setService,
       setPayment,
+      startBooking,
       applyPromo,
       clearPromo,
       setOrderUUID,
@@ -326,6 +357,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       setDestination,
       setService,
       setPayment,
+      startBooking,
       applyPromo,
       clearPromo,
       setOrderUUID,

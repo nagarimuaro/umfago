@@ -20,16 +20,21 @@ export type FoodAppBarProps = {
   onChangeQuery: (value: string) => void;
   placeholder: string;
   onBack: () => void;
+  onBasket?: () => void;
+  basketCount?: number;
 };
 
 /**
  * Top bar of the food category screen: back, an editable search field, and the basket.
- *
- * The basket is drawn with the design's unread dot but is disabled — this app has no
- * cart screen yet, so announcing an action that cannot happen would be worse than
- * showing the affordance as unavailable.
  */
-export function FoodAppBar({ query, onChangeQuery, placeholder, onBack }: FoodAppBarProps) {
+export function FoodAppBar({
+  query,
+  onChangeQuery,
+  placeholder,
+  onBack,
+  onBasket,
+  basketCount = 0,
+}: FoodAppBarProps) {
   return (
     <View style={styles.bar}>
       <IconButton icon="arrow-back" accessibilityLabel="Go back" onPress={onBack} />
@@ -57,8 +62,13 @@ export function FoodAppBar({ query, onChangeQuery, placeholder, onBack }: FoodAp
       </View>
 
       <View>
-        <IconButton icon="shopping-basket" accessibilityLabel="Basket" disabled />
-        <View style={styles.basketDot} pointerEvents="none" />
+        <IconButton
+          icon="shopping-basket"
+          accessibilityLabel="Basket"
+          disabled={!onBasket}
+          onPress={onBasket}
+        />
+        {basketCount > 0 ? <View style={styles.basketDot} pointerEvents="none" /> : null}
       </View>
     </View>
   );

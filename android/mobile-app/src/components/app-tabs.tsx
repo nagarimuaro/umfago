@@ -26,10 +26,10 @@ type TabItem = { name: string; href: Href; label: string; icon: IconName };
 
 const TabItems: readonly TabItem[] = [
   { name: 'index', href: '/', label: 'Home', icon: 'home' },
-  { name: 'activity', href: '/activity', label: 'Orders', icon: 'receipt-long' },
+  { name: 'activity', href: '/activity', label: 'History', icon: 'history' },
   { name: 'chat', href: '/chat', label: 'Chat', icon: 'chat-bubble-outline' },
   { name: 'promo', href: '/promo', label: 'Promo', icon: 'local-offer' },
-  { name: 'account', href: '/account', label: 'Profile', icon: 'person' },
+  { name: 'account', href: '/account', label: 'Account', icon: 'person' },
 ];
 
 type TabButtonProps = TabTriggerSlotProps & { icon: IconName };
@@ -62,27 +62,48 @@ export default function AppTabs() {
   */
   const barStyle = StyleSheet.flatten([
     styles.bar,
-    { paddingBottom: insets.bottom + Spacing.xs },
+    { paddingBottom: Math.max(insets.bottom, Spacing.xs) },
   ]);
 
   return (
-    <Tabs>
-      <TabSlot />
-      <TabList asChild>
-        <View style={barStyle}>
-          {TabItems.map((item) => (
-            <TabTrigger key={item.name} name={item.name} href={item.href} asChild>
-              <TabButton icon={item.icon}>{item.label}</TabButton>
-            </TabTrigger>
-          ))}
-        </View>
-      </TabList>
-    </Tabs>
+    <View style={styles.container}>
+      <Tabs style={styles.tabsRoot}>
+        <TabSlot style={styles.slot} />
+        <TabList asChild>
+          <View style={barStyle}>
+            {TabItems.map((item) => (
+              <TabTrigger key={item.name} name={item.name} href={item.href} asChild>
+                <TabButton icon={item.icon}>{item.label}</TabButton>
+              </TabTrigger>
+            ))}
+          </View>
+        </TabList>
+      </Tabs>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    height: '100%',
+    position: 'relative',
+    backgroundColor: Palette.surface,
+  },
+  tabsRoot: {
+    flex: 1,
+    height: '100%',
+  },
+  slot: {
+    flex: 1,
+    height: '100%',
+  },
   bar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: Spacing.xs,

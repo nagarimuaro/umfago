@@ -85,6 +85,25 @@ func (h *PromoHandler) List(c *gin.Context) {
 	})
 }
 
+// ListCustomer — GET /api/promos
+// Menampilkan daftar promo aktif yang bisa digunakan oleh pelanggan.
+func (h *PromoHandler) ListCustomer(c *gin.Context) {
+	now := time.Now()
+	var promos []models.Promo
+	err := h.db.Where("is_active = ? AND starts_at <= ? AND ends_at >= ?", true, now, now).
+		Where("quota = 0 OR used_count < quota").
+		Order("created_at desc").
+		Find(&promos).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active promos"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"promos": promos,
+	})
+}
+
 // Create — POST /api/admin/promos
 func (h *PromoHandler) Create(c *gin.Context) {
 	var req promoRequest

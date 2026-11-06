@@ -1,0 +1,356 @@
+<!DOCTYPE html><html lang="id"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>OpenJek - Driver Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Geist:wght@500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "surface-dim": "#d9dadd",
+                        "inverse-on-surface": "#f0f0f3",
+                        "on-primary-fixed": "#161f00",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "surface-container": "#edeef1",
+                        "background": "#f9f9fc",
+                        "on-primary-fixed-variant": "#3b4d00",
+                        "tertiary-fixed": "#d8e2ff",
+                        "primary": "#4f6600",
+                        "surface-variant": "#e2e2e5",
+                        "primary-container": "#c8ff00",
+                        "on-tertiary-container": "#0466d9",
+                        "surface-container-highest": "#e2e2e5",
+                        "on-surface": "#1a1c1e",
+                        "tertiary": "#005ac2",
+                        "on-background": "#1a1c1e",
+                        "surface": "#f9f9fc",
+                        "outline-variant": "#c4caac",
+                        "surface-bright": "#f9f9fc",
+                        "on-secondary-fixed": "#1a1a26",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#e3e0f2",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#e7ecff",
+                        "inverse-surface": "#2f3133",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#e3e0f2",
+                        "on-surface-variant": "#434933",
+                        "surface-tint": "#4f6600",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "inverse-primary": "#a8d700",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#c0f500",
+                        "surface-container-low": "#f3f3f6",
+                        "surface-container-high": "#e8e8eb",
+                        "on-secondary-fixed-variant": "#464553",
+                        "on-tertiary-fixed": "#001a42",
+                        "secondary-fixed-dim": "#c7c5d5",
+                        "on-primary-container": "#597300",
+                        "primary-fixed-dim": "#a8d700",
+                        "on-secondary-container": "#646371",
+                        "secondary": "#5e5d6b",
+                        "outline": "#747a60"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "xs": "8px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "edge-margin": "16px",
+                        "gutter": "12px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter", "sans-serif"],
+                        "display": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Geist", "monospace"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "700" }],
+                        "headline-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+                        "body-lg": ["18px", { lineHeight: "26px", fontWeight: "400" }],
+                        "body-md": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+                        "label-caps": ["12px", { lineHeight: "16px", fontWeight: "600", letterSpacing: "0.05em", textTransform: "uppercase" }],
+                        "label-md": ["14px", { lineHeight: "20px", fontWeight: "500", letterSpacing: "0.02em" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom map background simulation */
+        .map-bg {
+            background-color: #e5e3df; /* Typical map base color */
+            background-image: 
+                linear-gradient(45deg, transparent 49%, rgba(0,0,0,0.05) 49%, rgba(0,0,0,0.05) 51%, transparent 51%),
+                linear-gradient(-45deg, transparent 49%, rgba(0,0,0,0.05) 49%, rgba(0,0,0,0.05) 51%, transparent 51%);
+            background-size: 100px 100px;
+        }
+        
+        /* Toggle Switch Animation */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #c8ff00;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #c8ff00;
+        }
+        .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(100%);
+            border-color: white;
+        }
+    </style>
+<meta content="mobile_tab" name="shell-type"><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body h-screen w-full overflow-hidden relative selection:bg-primary-container selection:text-on-primary-container">
+<!-- Map Background Area -->
+<div class="absolute inset-0 z-0 map-bg w-full h-full" data-location="Jakarta, Indonesia" style="background-color: rgb(18, 19, 22); background-image: radial-gradient(circle at 50% 40%, rgba(200, 255, 0, 0.05) 0%, transparent 65%), linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px), linear-gradient(45deg, transparent 48%, rgba(255, 255, 255, 0.02) 49%, rgba(255, 255, 255, 0.02) 51%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(255, 255, 255, 0.02) 49%, rgba(255, 255, 255, 0.02) 51%, transparent 52%); background-size: 100% 100%, 40px 40px, 40px 40px, 120px 120px, 120px 120px;">
+<!-- Simulated Map Elements -->
+<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
+<!-- Pulsing ring -->
+<div class="absolute w-24 h-24 bg-primary-container rounded-full opacity-30 animate-ping"></div>
+<!-- Marker -->
+<div class="relative w-12 h-12 bg-on-secondary-fixed rounded-full border-4 border-surface-container-lowest flex items-center justify-center shadow-lg">
+<span class="material-symbols-outlined text-primary-container icon-fill" style="font-size: 24px;">two_wheeler</span>
+</div>
+<!-- Direction indicator -->
+<div class="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[12px] border-t-on-secondary-fixed -mt-1 relative z-10"></div>
+</div>
+</div>
+<!-- TopAppBar -->
+<header class="docked full-width top-0 bg-[#131313]/90 backdrop-blur-md text-primary z-40 fixed flex justify-between items-center w-full px-edge-margin py-base h-16 shadow-md border-b border-[#2a2a2a]">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-full bg-surface-container overflow-hidden border border-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A close up portrait of a professional motorcycle driver wearing a clean uniform, smiling slightly. The photo is well lit with a neutral background, suitable for a professional profile picture in a modern app interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBf9Wz-PlWooCZt8LC8AYg72IaBw-COqVQiF4Eky8FiCb-3wLp95P7uY4JRKHRzivLTS8yDtShJxtKRcVbjTK6csklkm1TKa3DiqtB1f3bvQnd18zCuu0vsdgwc8kE5UM34Lw-KyZqjTmkY-Qx9Luh-ncKRXdpw6CdDYJvKAeYnqLVdL_wqONd5qyKuGPmt-gfZZaK34rmyTCdbkxQjdZ6cjw2nudxOY0o775UrPdW6fkC36lI9xDzA">
+</div>
+<h1 class="font-headline-lg-mobile text-white font-extrabold tracking-tight">OpenJek</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-[#1b1c1c] border border-[#2a2a2a] hover:bg-[#252626] transition-transform active:scale-95 text-[#c8c6c5]">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<!-- Main Content Area (Floating over map) -->
+<main class="relative z-30 h-full w-full pt-20 pb-32 px-edge-margin flex flex-col justify-between pointer-events-none"><div class="flex flex-col w-full pointer-events-auto gap-sm"><!-- Online / Status Badge Bar -->
+<div class="flex items-center justify-between bg-[#191a1a]/90 backdrop-blur-md px-md py-sm rounded-full shadow-lg border border-[#2c2d2d]">
+  <div class="flex items-center gap-xs">
+    <span class="relative flex h-3 w-3 items-center justify-center">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c8ff00] opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2 w-2 bg-[#c8ff00]"></span>
+    </span>
+    <span class="font-label-caps text-label-caps text-[#c8ff00] font-bold tracking-wider uppercase">Siap Terima Order</span>
+  </div>
+  <button class="flex items-center gap-xs bg-[#242626] hover:bg-[#2d2f2f] px-sm py-xs rounded-full transition-all active:scale-95 border border-[#353636]" id="quick-toggle-status">
+    <span class="font-body-sm text-body-sm text-white font-medium" id="quick-status-text">Online</span>
+    <span class="material-symbols-outlined text-[18px] text-[#c8ff00]" style="font-variation-settings: 'FILL' 1;">toggle_on</span>
+  </button>
+</div>
+
+<!-- Area Ramai / Heatmap Alert -->
+<div class="bg-[#1b1c1c]/95 backdrop-blur-md rounded-xl p-md shadow-xl flex items-center justify-between gap-sm border border-[#2c2d2d]">
+  <div class="flex items-center gap-sm min-w-0">
+    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-[#2a2b27] flex items-center justify-center text-[#c8ff00] border border-[#3a3d2e]">
+      <span class="material-symbols-outlined text-[22px]">local_fire_department</span>
+    </div>
+    <div class="flex flex-col min-w-0">
+      <div class="flex items-center gap-xs">
+        <span class="font-label-caps text-label-caps text-[#9ea38f] font-semibold">Area Ramai</span>
+        <span class="bg-[#c8ff00] text-[#161f00] font-label-caps text-[10px] px-xs py-0.5 rounded-full font-bold">1.2x</span>
+      </div>
+      <p class="font-body-sm text-body-sm text-white truncate font-medium">Grand Indonesia &amp; Sudirman</p>
+    </div>
+  </div>
+  <button class="flex-shrink-0 bg-[#252727] hover:bg-[#303232] text-[#c8ff00] p-xs rounded-full transition-transform active:scale-90 flex items-center justify-center border border-[#353737]">
+    <span class="material-symbols-outlined text-[20px]">near_me</span>
+  </button>
+</div>
+
+<!-- Card Metrik Kinerja Driver (Pendapatan Hari Ini) -->
+<div class="bg-[#1b1c1c] rounded-xl p-md shadow-2xl flex flex-col gap-md border border-[#2c2d2d]">
+  <div class="flex items-center justify-between">
+    <div class="flex flex-col">
+      <span class="font-label-caps text-label-caps text-[#8e9479] uppercase tracking-wider font-semibold">Pendapatan Hari Ini</span>
+      <div class="flex items-baseline gap-xs pt-1">
+        <span class="font-currency-display text-currency-display text-white font-extrabold tracking-tight">Rp 350.000</span>
+        <span class="font-body-sm text-body-sm text-[#c8ff00] font-semibold">+18%</span>
+      </div>
+    </div>
+    <button class="bg-[#252727] hover:bg-[#303232] text-white px-sm py-xs rounded-full flex items-center gap-xs transition-all active:scale-95 shadow-sm border border-[#353737]">
+      <span class="font-body-sm text-body-sm font-semibold">Dompet</span>
+      <span class="material-symbols-outlined text-[16px] text-[#c8ff00]">arrow_forward</span>
+    </button>
+  </div>
+
+  <!-- 3 Sub-stat items -->
+  <div class="grid grid-cols-3 gap-xs pt-xs">
+    <div class="bg-[#131414] p-sm rounded-lg flex flex-col items-center justify-center text-center gap-xs border border-[#232525]">
+      <span class="material-symbols-outlined text-[20px] text-[#8e9479]">two_wheeler</span>
+      <div class="flex flex-col">
+        <span class="font-headline-lg-mobile text-[20px] leading-tight text-white font-bold">14</span>
+        <span class="font-label-caps text-[10px] text-[#8e9479] uppercase tracking-wider font-medium">Order</span>
+      </div>
+    </div>
+    <div class="bg-[#131414] p-sm rounded-lg flex flex-col items-center justify-center text-center gap-xs border border-[#232525]">
+      <span class="material-symbols-outlined text-[20px] text-[#c8ff00]" style="font-variation-settings: 'FILL' 1;">star</span>
+      <div class="flex flex-col">
+        <span class="font-headline-lg-mobile text-[20px] leading-tight text-white font-bold">4.9</span>
+        <span class="font-label-caps text-[10px] text-[#8e9479] uppercase tracking-wider font-medium">Rating</span>
+      </div>
+    </div>
+    <div class="bg-[#131414] p-sm rounded-lg flex flex-col items-center justify-center text-center gap-xs border border-[#232525]">
+      <span class="material-symbols-outlined text-[20px] text-[#8e9479]">timer</span>
+      <div class="flex flex-col">
+        <span class="font-headline-lg-mobile text-[20px] leading-tight text-white font-bold">6j 30m</span>
+        <span class="font-label-caps text-[10px] text-[#8e9479] uppercase tracking-wider font-medium">Aktif</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status footer bar -->
+  <div class="flex items-center justify-between bg-[#131414] px-md py-sm rounded-lg border border-[#232525]">
+    <div class="flex items-center gap-xs">
+      <span class="material-symbols-outlined text-[18px] text-[#c8ff00]">shield_with_heart</span>
+      <span class="font-body-sm text-body-sm text-white font-medium">Status: Aktif &amp; Siaga</span>
+    </div>
+    <span class="font-label-caps text-label-caps text-[#8e9479] font-mono">JKT-ID</span>
+  </div>
+</div>
+
+<!-- Floating Map Quick Control Buttons -->
+<div class="flex items-center justify-between gap-sm">
+  <div class="bg-[#191a1a]/90 backdrop-blur-md px-md py-sm rounded-full flex items-center gap-xs shadow-md border border-[#2c2d2d]">
+    <span class="material-symbols-outlined text-[16px] text-[#c8ff00]">my_location</span>
+    <span class="font-body-sm text-body-sm text-white font-medium truncate max-w-[150px]">Menteng, Jakarta</span>
+  </div>
+  <div class="flex items-center gap-xs">
+    <button class="w-10 h-10 rounded-full bg-[#191a1a]/90 backdrop-blur-md hover:bg-[#252626] flex items-center justify-center text-white shadow-md transition-transform active:scale-95 border border-[#2c2d2d]">
+      <span class="material-symbols-outlined text-[20px]">layers</span>
+    </button>
+    <button class="w-10 h-10 rounded-full bg-[#191a1a]/90 backdrop-blur-md hover:bg-[#252626] flex items-center justify-center text-[#c8ff00] shadow-md transition-transform active:scale-95 border border-[#2c2d2d]">
+      <span class="material-symbols-outlined text-[20px]">navigation</span>
+    </button>
+  </div>
+</div></div>
+<script>
+  (function() {
+    const quickToggleBtn = document.getElementById('quick-toggle-status');
+    const quickStatusText = document.getElementById('quick-status-text');
+    let driverState = true;
+
+    if (quickToggleBtn && quickStatusText) {
+      quickToggleBtn.addEventListener('click', () => {
+        driverState = !driverState;
+        if (driverState) {
+          quickStatusText.textContent = 'Online';
+          quickToggleBtn.querySelector('.material-symbols-outlined').textContent = 'toggle_on';
+          quickToggleBtn.querySelector('.material-symbols-outlined').classList.add('text-primary-container');
+          quickToggleBtn.querySelector('.material-symbols-outlined').classList.remove('text-on-surface-variant');
+        } else {
+          quickStatusText.textContent = 'Offline';
+          quickToggleBtn.querySelector('.material-symbols-outlined').textContent = 'toggle_off';
+          quickToggleBtn.querySelector('.material-symbols-outlined').classList.remove('text-primary-container');
+          quickToggleBtn.querySelector('.material-symbols-outlined').classList.add('text-on-surface-variant');
+        }
+      });
+    }
+  })();
+</script></main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-base py-sm bg-[#131313]/95 backdrop-blur-md docked full-width rounded-t-xl border-t border-[#2a2a2a] shadow-[0_-4px_20px_rgba(0,0,0,0.4)] md:hidden h-20">
+<!-- Active Tab: Beranda -->
+<button class="flex flex-col items-center justify-center w-16 group active:scale-90 transition-all duration-150">
+<div class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 mb-1 shadow-sm">
+<span class="material-symbols-outlined icon-fill">home</span>
+</div>
+<span class="font-label text-[10px] font-semibold text-on-primary-fixed-variant">Beranda</span>
+</button>
+<!-- Inactive Tab: Riwayat -->
+<button class="flex flex-col items-center justify-center w-16 group hover:opacity-80 active:scale-90 transition-all duration-150">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 mb-1">
+<span class="material-symbols-outlined">history</span>
+</div>
+<span class="font-label text-[10px] font-medium text-on-surface-variant">Riwayat</span>
+</button>
+<!-- Inactive Tab: Saldo -->
+<button class="flex flex-col items-center justify-center w-16 group hover:opacity-80 active:scale-90 transition-all duration-150">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 mb-1">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</div>
+<span class="font-label text-[10px] font-medium text-on-surface-variant">Saldo</span>
+</button>
+<!-- Inactive Tab: Akun -->
+<button class="flex flex-col items-center justify-center w-16 group hover:opacity-80 active:scale-90 transition-all duration-150">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 mb-1">
+<span class="material-symbols-outlined">person</span>
+</div>
+<span class="font-label text-[10px] font-medium text-on-surface-variant">Akun</span>
+</button>
+</nav>
+<script>
+        // Simple toggle logic for the Online/Offline status
+        const toggleContainer = document.getElementById('toggle-container');
+        const toggleThumb = document.getElementById('toggle-thumb');
+        const toggleIcon = document.getElementById('toggle-icon');
+        const statusText = document.getElementById('status-text');
+        const statusCard = document.getElementById('status-card');
+        let isOnline = false;
+
+        toggleContainer.addEventListener('click', () => {
+            isOnline = !isOnline;
+            if (isOnline) {
+                // Online State
+                toggleThumb.style.transform = 'translateX(100%)';
+                toggleThumb.classList.remove('bg-surface-container-lowest');
+                toggleThumb.classList.add('bg-primary-container');
+                toggleIcon.classList.remove('text-secondary');
+                toggleIcon.classList.add('text-on-primary-fixed');
+                toggleIcon.classList.add('icon-fill');
+                toggleIcon.textContent = 'check_circle';
+                
+                statusText.textContent = 'Anda sedang Online';
+                statusCard.classList.add('border-primary-container');
+            } else {
+                // Offline State
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleThumb.classList.add('bg-surface-container-lowest');
+                toggleThumb.classList.remove('bg-primary-container');
+                toggleIcon.classList.add('text-secondary');
+                toggleIcon.classList.remove('text-on-primary-fixed');
+                toggleIcon.classList.remove('icon-fill');
+                toggleIcon.textContent = 'power_settings_new';
+                
+                statusText.textContent = 'Anda sedang Offline';
+                statusCard.classList.remove('border-primary-container');
+            }
+        });
+    </script>
+
+
+</body></html>

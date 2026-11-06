@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DSText } from '@/components/ds/ds-text';
@@ -15,7 +15,12 @@ import {
   FoodQuickEtaMinutes,
   FoodRatingFloor,
 } from '@/constants/food';
+import { useAuth } from '@/hooks/use-auth';
+import { useFoodOrder } from '@/hooks/use-food-order';
 import type { FoodFilterId, FoodMerchant } from '@/types/food';
+import { ENV } from '@/constants/env';
+
+const BACKEND_URL = ENV.API_URL;
 
 function matchesQuery(merchant: FoodMerchant, needle: string) {
   if (!needle) return true;
@@ -27,14 +32,60 @@ function matchesQuery(merchant: FoodMerchant, needle: string) {
 
 export default function FoodScreen() {
   const router = useRouter();
+  const { token } = useAuth();
+  const { itemCount } = useFoodOrder();
   /* The constant is `as const`, so the state has to be widened back to a plain string. */
-  const [query, setQuery] = useState<string>(FoodCategoryCopy.searchValue);
+  const [query, setQuery] = useState<string>('');
   const [activeIds, setActiveIds] = useState<readonly FoodFilterId[]>([]);
+  const [serverMerchants, setServerMerchants] = useState<FoodMerchant[]>([]);
+
+  useEffect(() => {
+    const fetchMerchants = async () => {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${BACKEND_URL}/api/merchants`, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data.merchants) && data.merchants.length > 0) {
+          const mapped: FoodMerchant[] = data.merchants.map((m: any) => ({
+            id: String(m.id),
+            name: m.business_name,
+            tags: m.category ? `${m.category} • Pilihan UmfaGo` : 'Kuliner • Pilihan UmfaGo',
+            rating: Number(m.rating || 4.8),
+            distanceKm: Number(m.distance_km || 1.2),
+            etaLabel: '20-30 min',
+            etaMaxMinutes: 30,
+            isFreeDelivery: true,
+            isFavorite: false,
+            badges: [{ label: 'Mitra Umfa', tone: 'primary', icon: 'verified' as const }],
+            image:
+              m.logo_url ||
+              'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500',
+          }));
+          setServerMerchants(mapped);
+        }
+      } catch {
+        // Fallback to static
+      }
+    };
+
+    fetchMerchants();
+  }, [token]);
+
+  const allMerchants = useMemo(() => {
+    if (serverMerchants.length === 0) return FoodMerchants;
+    // Gabungkan server merchants dengan FoodMerchants jika ada yang belum tercakup
+    const existingIds = new Set(serverMerchants.map((m) => m.name.toLowerCase()));
+    const additional = FoodMerchants.filter((m) => !existingIds.has(m.name.toLowerCase()));
+    return [...serverMerchants, ...additional];
+  }, [serverMerchants]);
 
   const merchants = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
-    const filtered = FoodMerchants.filter((merchant) => {
+    const filtered = allMerchants.filter((merchant) => {
       if (!matchesQuery(merchant, needle)) return false;
       if (activeIds.includes('rating') && merchant.rating < FoodRatingFloor) return false;
       if (activeIds.includes('promo') && merchant.badges.length === 0) return false;
@@ -46,7 +97,7 @@ export default function FoodScreen() {
     if (!activeIds.includes('nearest')) return filtered;
 
     return [...filtered].sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [query, activeIds]);
+  }, [query, activeIds, allMerchants]);
 
   function toggleFilter(id: FoodFilterId) {
     setActiveIds((current) =>
@@ -74,6 +125,8 @@ export default function FoodScreen() {
           onChangeQuery={setQuery}
           placeholder={FoodCategoryCopy.searchPlaceholder}
           onBack={goBack}
+          onBasket={itemCount > 0 ? () => router.push('/food/checkout') : undefined}
+          basketCount={itemCount}
         />
 
         <ScrollView

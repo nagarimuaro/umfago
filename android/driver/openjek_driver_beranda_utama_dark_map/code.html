@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>OpenJek - Driver Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "primary-fixed": "#c0f500",
+          "surface-container-highest": "#353535",
+          "tertiary": "#ffffff",
+          "secondary-fixed-dim": "#c8c6c5",
+          "on-secondary-container": "#b7b5b4",
+          "tertiary-container": "#e2e2e2",
+          "on-tertiary-fixed-variant": "#454747",
+          "surface-container-high": "#2a2a2a",
+          "on-secondary-fixed-variant": "#474746",
+          "on-primary": "#273500",
+          "on-surface-variant": "#c4caac",
+          "primary-fixed-dim": "#a8d700",
+          "surface": "#131313",
+          "on-error-container": "#ffdad6",
+          "surface-container": "#1f2020",
+          "on-tertiary-container": "#636565",
+          "error": "#ffb4ab",
+          "on-primary-container": "#546d00",
+          "on-primary-fixed": "#161f00",
+          "tertiary-fixed": "#e2e2e2",
+          "error-container": "#93000a",
+          "primary": "#ffffff",
+          "tertiary-fixed-dim": "#c6c6c7",
+          "on-secondary-fixed": "#1c1b1b",
+          "on-background": "#e4e2e1",
+          "secondary": "#c8c6c5",
+          "primary-container": "#c0f500",
+          "surface-dim": "#131313",
+          "surface-variant": "#353535",
+          "on-tertiary": "#2f3131",
+          "inverse-primary": "#4f6600",
+          "surface-bright": "#393939",
+          "on-surface": "#e4e2e1",
+          "secondary-fixed": "#e5e2e1",
+          "on-error": "#690005",
+          "inverse-on-surface": "#303030",
+          "secondary-container": "#474746",
+          "surface-container-low": "#1b1c1c",
+          "surface-container-lowest": "#0e0e0e",
+          "on-primary-fixed-variant": "#3b4d00",
+          "on-tertiary-fixed": "#1a1c1c",
+          "outline-variant": "#434933",
+          "outline": "#8e9479",
+          "background": "#131313",
+          "inverse-surface": "#e4e2e1",
+          "on-secondary": "#313030",
+          "surface-tint": "#a8d700"
+        },
+        fontFamily: {
+          "headline-xl": ["Hanken Grotesk", "sans-serif"],
+          "headline-lg-mobile": ["Hanken Grotesk", "sans-serif"],
+          "headline-lg": ["Hanken Grotesk", "sans-serif"],
+          "currency-display": ["Hanken Grotesk", "sans-serif"],
+          "body-md": ["Inter", "sans-serif"],
+          "body-sm": ["Inter", "sans-serif"],
+          "label-caps": ["JetBrains Mono", "monospace"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .icon-fill {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  body {
+    min-height: max(884px, 100dvh);
+    background-color: #121517;
+  }
+  @keyframes pulseRadar {
+    0% { transform: scale(0.85); opacity: 0.8; }
+    50% { transform: scale(1.4); opacity: 0.25; }
+    100% { transform: scale(1.9); opacity: 0; }
+  }
+  @keyframes surgeGlow {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.08); opacity: 0.85; }
+  }
+  .radar-ring {
+    animation: pulseRadar 2.4s ease-out infinite;
+  }
+  .radar-ring-delayed {
+    animation: pulseRadar 2.4s ease-out infinite 1.2s;
+  }
+  .surge-pulse {
+    animation: surgeGlow 3s ease-in-out infinite;
+  }
+</style>
+<meta content="mobile_tab" name="shell-type"/>
+</head>
+<body class="bg-background text-on-background font-body-md h-screen w-full overflow-hidden relative select-none">
+<!-- ========================================== -->
+<!-- 1. FULLSCREEN DARK GPS MAP SVG CANVAS     -->
+<!-- ========================================== -->
+<div class="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-auto bg-[#101417]">
+<svg class="w-full h-full object-cover" preserveaspectratio="xMidYMid slice" viewbox="0 0 430 932" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<!-- Water Pattern / Texture -->
+<lineargradient id="waterGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#0a1824"></stop>
+<stop offset="100%" stop-color="#0c2333"></stop>
+</lineargradient>
+<!-- Surge Heatmap Radial Gradient -->
+<radialgradient cx="50%" cy="50%" id="heatGradient" r="50%">
+<stop offset="0%" stop-color="#c8ff00" stop-opacity="0.38"></stop>
+<stop offset="45%" stop-color="#ff6b00" stop-opacity="0.28"></stop>
+<stop offset="75%" stop-color="#ff1a1a" stop-opacity="0.12"></stop>
+<stop offset="100%" stop-color="#ff1a1a" stop-opacity="0"></stop>
+</radialgradient>
+<!-- Secondary Heatmap -->
+<radialgradient cx="50%" cy="50%" id="heatGradientSecondary" r="50%">
+<stop offset="0%" stop-color="#c8ff00" stop-opacity="0.30"></stop>
+<stop offset="60%" stop-color="#ffaa00" stop-opacity="0.15"></stop>
+<stop offset="100%" stop-color="#ffaa00" stop-opacity="0"></stop>
+</radialgradient>
+<!-- Road Center Dash -->
+<pattern height="20" id="roadMarking" patternunits="userSpaceOnUse" width="20">
+<line stroke="#f2efdc" stroke-opacity="0.6" stroke-width="1.5" x1="10" x2="10" y1="0" y2="10"></line>
+</pattern>
+</defs>
+<!-- Base Land Cover -->
+<rect fill="#12161a" height="932" width="430"></rect>
+<!-- Green Parks / Open Spaces (Taman Suropati & Menteng style) -->
+<path d="M260,110 Q320,130 350,180 T320,260 Q270,250 250,200 Z" fill="#15241b" stroke="#1c3326" stroke-width="1.5"></path>
+<path d="M40,290 C90,280 120,310 110,360 C80,390 30,370 20,330 Z" fill="#14261c" stroke="#1c3627" stroke-width="1"></path>
+<path d="M310,540 C360,530 410,560 390,620 C350,640 320,610 305,570 Z" fill="#15241b" stroke="#1c3326" stroke-width="1.2"></path>
+<!-- Waterways / Kanal Banjir Barat & Cideng -->
+<path d="M-20,240 Q110,210 200,280 T360,330 T450,320" fill="none" stroke="url(#waterGrad)" stroke-linecap="round" stroke-width="16"></path>
+<path d="M-20,240 Q110,210 200,280 T360,330 T450,320" fill="none" stroke="#16384f" stroke-opacity="0.5" stroke-width="1.5"></path>
+<!-- Urban Building Blocks / 3D Parcel Polygons -->
+<!-- Northwest blocks -->
+<rect fill="#171d22" height="60" rx="3" stroke="#1e262c" stroke-width="1" width="70" x="25" y="110"></rect>
+<rect fill="#192026" height="50" rx="3" stroke="#222b32" stroke-width="1" width="55" x="110" y="105"></rect>
+<rect fill="#181e23" height="75" rx="3" stroke="#20282f" stroke-width="1" width="60" x="35" y="185"></rect>
+<!-- Thamrin / Sudirman West blocks -->
+<rect fill="#1a2228" height="65" rx="3" stroke="#242e37" stroke-width="1.2" width="85" x="30" y="410"></rect>
+<rect fill="#182025" height="80" rx="3" stroke="#222a32" stroke-width="1" width="95" x="25" y="490"></rect>
+<polygon fill="#1a2127" points="35,590 120,590 110,670 30,660" stroke="#232d35" stroke-width="1"></polygon>
+<rect fill="#181f25" height="70" rx="3" stroke="#212930" stroke-width="1" width="80" x="40" y="690"></rect>
+<!-- Menteng East blocks -->
+<rect fill="#171e23" height="55" rx="3" stroke="#20272e" stroke-width="1" width="65" x="280" y="320"></rect>
+<rect fill="#192026" height="70" rx="3" stroke="#222b33" stroke-width="1" width="55" x="360" y="310"></rect>
+<rect fill="#1a2228" height="60" rx="3" stroke="#242e36" stroke-width="1" width="80" x="290" y="395"></rect>
+<rect fill="#181e24" height="90" rx="3" stroke="#212830" stroke-width="1" width="55" x="385" y="400"></rect>
+<!-- Mega Kuningan East Blocks -->
+<polygon fill="#192127" points="280,480 375,470 395,530 295,540" stroke="#242e36" stroke-width="1"></polygon>
+<rect fill="#182025" height="75" rx="3" stroke="#212a32" stroke-width="1" width="90" x="290" y="650"></rect>
+<!-- Minor Streets & Connecting Grids -->
+<!-- Horizontal Cross-streets -->
+<line stroke="#1d252c" stroke-width="8" x1="-10" x2="440" y1="180" y2="180"></line>
+<line stroke="#202931" stroke-width="9" x1="-10" x2="440" y1="275" y2="275"></line>
+<line stroke="#242f38" stroke-width="10" x1="-10" x2="440" y1="400" y2="390"></line>
+<line stroke="#222c34" stroke-width="8" x1="-10" x2="440" y1="480" y2="470"></line>
+<line stroke="#253039" stroke-width="11" x1="-10" x2="440" y1="585" y2="585"></line>
+<line stroke="#222c34" stroke-width="9" x1="-10" x2="440" y1="680" y2="675"></line>
+<line stroke="#1e262d" stroke-width="8" x1="-10" x2="440" y1="780" y2="775"></line>
+<!-- Diagonal Secondary Roads -->
+<line stroke="#232d36" stroke-width="10" x1="380" x2="160" y1="-20" y2="950"></line>
+<line stroke="#1f2830" stroke-width="8" x1="100" x2="380" y1="-20" y2="950"></line>
+<!-- ============================================== -->
+<!-- MAJOR ARTERIAL ROADS (Jl. MH Thamrin - Sudirman, Kuningan) -->
+<!-- ============================================== -->
+<!-- JL. RASUNA SAID / KUNINGAN (East Main Vein) -->
+<path d="M375,-20 L335,380 L320,950" fill="none" stroke="#18222a" stroke-linejoin="round" stroke-width="26"></path>
+<path d="M375,-20 L335,380 L320,950" fill="none" stroke="#283540" stroke-linejoin="round" stroke-width="20"></path>
+<path d="M375,-20 L335,380 L320,950" fill="none" stroke="#ffb74d" stroke-dasharray="8,6" stroke-opacity="0.45" stroke-width="1.5"></path>
+<!-- JL. JENDERAL SUDIRMAN / MH THAMRIN (Central Spine) -->
+<!-- Outer Road Casing -->
+<path d="M210,-20 L205,270 L195,430 L185,950" fill="none" stroke="#141a20" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>
+<!-- Road Surface Core -->
+<path d="M210,-20 L205,270 L195,430 L185,950" fill="none" stroke="#2d3a46" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></path>
+<!-- Center Marking Line (High Contrast Night GPS Styling) -->
+<path d="M210,-20 L205,270 L195,430 L185,950" fill="none" stroke="#c8ff00" stroke-dasharray="12,10" stroke-opacity="0.6" stroke-width="2"></path>
+<!-- JL. DR. SATRIO / FLYOVER (Horizontal Major Artery) -->
+<path d="M-20,580 L450,575" fill="none" stroke="#1a232b" stroke-width="22"></path>
+<path d="M-20,580 L450,575" fill="none" stroke="#283540" stroke-width="16"></path>
+<path d="M-20,580 L450,575" fill="none" stroke="#f5f5f5" stroke-dasharray="6,8" stroke-opacity="0.4" stroke-width="1.2"></path>
+<!-- BUNDARAN HI ROUNDABOUT SIMULATION -->
+<circle cx="205" cy="270" fill="#13171b" r="26" stroke="#2d3a46" stroke-width="14"></circle>
+<circle cx="205" cy="270" fill="none" r="26" stroke="#c8ff00" stroke-dasharray="5,4" stroke-opacity="0.8" stroke-width="1.5"></circle>
+<circle cx="205" cy="270" fill="#0c2333" r="14" stroke="#16384f" stroke-width="2"></circle>
+<!-- Monumen Selamat Datang center dot -->
+<circle cx="205" cy="270" fill="#c8ff00" r="3"></circle>
+<!-- ============================================== -->
+<!-- SURGE HEATMAP / HOTSPOT AREA (Grand Indonesia) -->
+<!-- ============================================== -->
+<g class="surge-pulse">
+<circle cx="160" cy="320" fill="url(#heatGradient)" r="95"></circle>
+<circle cx="160" cy="320" fill="none" opacity="0.4" r="65" stroke="#ff3b30" stroke-dasharray="4,4" stroke-width="1.5"></circle>
+</g>
+<!-- Secondary Hotspot (Kuningan Sentra) -->
+<g class="surge-pulse" style="animation-delay: 1.5s;">
+<circle cx="330" cy="520" fill="url(#heatGradientSecondary)" r="80"></circle>
+</g>
+<!-- ============================================== -->
+<!-- STREET & POI LABELS                           -->
+<!-- ============================================== -->
+<!-- Bundaran HI Label -->
+<text fill="#a4afb8" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" letter-spacing="1" text-anchor="middle" x="205" y="240">BUNDARAN HI</text>
+<!-- Grand Indonesia POI Landmark -->
+<g transform="translate(110, 310)">
+<rect fill="#191d21" fill-opacity="0.9" height="20" rx="4" stroke="#353f47" stroke-width="1" width="76" x="0" y="0"></rect>
+<circle cx="10" cy="10" fill="#c8ff00" r="3.5"></circle>
+<text fill="#e4e2e1" font-family="'Inter', sans-serif" font-size="8.5" font-weight="600" x="20" y="13">Grand Indonesia</text>
+</g>
+<!-- Plaza Indonesia Landmark -->
+<g transform="translate(195, 195)">
+<rect fill="#191d21" fill-opacity="0.9" height="18" rx="4" stroke="#353f47" stroke-width="1" width="74" x="0" y="0"></rect>
+<text fill="#c8c6c5" font-family="'Inter', sans-serif" font-size="8" font-weight="600" x="7" y="12">Plaza Indonesia</text>
+</g>
+<!-- Jl. M.H. Thamrin Label on Road -->
+<text fill="#8e9bb0" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" letter-spacing="2" transform="rotate(88 217 130)" x="217" y="130">JL. M.H. THAMRIN</text>
+<!-- Jl. Jenderal Sudirman Label on Road -->
+<text fill="#8e9bb0" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" letter-spacing="2" transform="rotate(93 205 490)" x="205" y="490">JL. JEND. SUDIRMAN</text>
+<!-- Jl. Rasuna Said Label -->
+<text fill="#6d7a86" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="600" letter-spacing="1.5" transform="rotate(95 340 440)" x="340" y="440">JL. H.R. RASUNA SAID</text>
+<!-- Jl. Prof. Dr. Satrio Label -->
+<text fill="#6d7a86" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="600" letter-spacing="1" x="60" y="572">JL. PROF. DR. SATRIO</text>
+<!-- ============================================== -->
+<!-- DRIVER GPS POSITION PIN & RADAR (Centered)   -->
+<!-- Position: Jl. Sudirman near Dukuh Atas        -->
+<!-- ============================================== -->
+<g transform="translate(198, 435)">
+<!-- Animated radar pulse waves -->
+<circle class="radar-ring" cx="0" cy="0" fill="#c8ff00" opacity="0.3" r="28"></circle>
+<circle class="radar-ring-delayed" cx="0" cy="0" fill="#c8ff00" opacity="0.3" r="28"></circle>
+<!-- Field of View / Heading Beam Cone -->
+<path d="M0,0 L-26,-65 A70,70 0 0,1 26,-65 Z" fill="url(#driverBeam)" opacity="0.3"></path>
+<defs>
+<lineargradient id="driverBeam" x1="0%" x2="0%" y1="100%" y2="0%">
+<stop offset="0%" stop-color="#c8ff00" stop-opacity="0.6"></stop>
+<stop offset="100%" stop-color="#c8ff00" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Accuracy Ring -->
+<circle cx="0" cy="0" fill="#13171b" fill-opacity="0.85" filter="drop-shadow(0 4px 10px rgba(0,0,0,0.6))" r="19" stroke="#c8ff00" stroke-width="2.5"></circle>
+<!-- Driver Marker Glow Core -->
+<circle cx="0" cy="0" fill="#c8ff00" r="14"></circle>
+<!-- Direction Arrow Head (Motorcycle Heading North-Northwest) -->
+<path d="M0,-8 L6,6 L0,3 L-6,6 Z" fill="#161f00"></path>
+</g>
+</svg>
+<!-- Heatmap Floating Badge (Surge Zone Pin) -->
+<div class="absolute top-[320px] left-[55px] z-10 flex items-center gap-1.5 bg-[#1b1c1c]/95 border border-[#ff6b00]/60 text-white px-2.5 py-1 rounded-full shadow-[0_4px_16px_rgba(255,107,0,0.35)] backdrop-blur-md animate-bounce" style="animation-duration: 2.5s;">
+<span class="text-xs">🔥</span>
+<div class="flex flex-col">
+<span class="text-[9px] font-label-caps font-bold text-[#ff9e58] uppercase leading-none tracking-wide">Area Ramai</span>
+<span class="text-[11px] font-headline-lg font-bold text-[#c8ff00] leading-tight">+Rp 4.000 <span class="text-[9px] font-normal text-gray-300">/ trip</span></span>
+</div>
+</div>
+<!-- Heatmap Secondary Badge (Kuningan) -->
+<div class="absolute top-[505px] right-[24px] z-10 hidden sm:flex items-center gap-1 bg-[#1b1c1c]/90 border border-[#c8ff00]/40 text-white px-2 py-0.5 rounded-full shadow-md backdrop-blur-md">
+<span class="text-[10px]">⚡</span>
+<span class="text-[10px] font-label-caps font-semibold text-[#c8ff00]">Kuningan +Rp 2.500</span>
+</div>
+</div>
+<!-- ========================================== -->
+<!-- 2. FLOATING TOP BAR / HEADER               -->
+<!-- ========================================== -->
+<header class="fixed top-0 left-0 right-0 z-40 px-4 pt-3 pb-2 flex flex-col gap-2.5 pointer-events-none">
+<!-- Top Utility Bar: Driver Profile + Saldo + Notif -->
+<div class="flex items-center justify-between pointer-events-auto">
+<!-- Driver Info Pill -->
+<div class="flex items-center gap-2.5 bg-[#131313]/90 border border-[#2a2a2a] p-1.5 pr-3 rounded-full backdrop-blur-md shadow-lg">
+<div class="relative w-9 h-9 rounded-full overflow-hidden border-2 border-[#c8ff00] flex-shrink-0">
+<img alt="Rudra Pratama Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBf9Wz-PlWooCZt8LC8AYg72IaBw-COqVQiF4Eky8FiCb-3wLp95P7uY4JRKHRzivLTS8yDtShJxtKRcVbjTK6csklkm1TKa3DiqtB1f3bvQnd18zCuu0vsdgwc8kE5UM34Lw-KyZqjTmkY-Qx9Luh-ncKRXdpw6CdDYJvKAeYnqLVdL_wqONd5qyKuGPmt-gfZZaK34rmyTCdbkxQjdZ6cjw2nudxOY0o775UrPdW6fkC36lI9xDzA"/>
+<!-- Status dot -->
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#c8ff00] rounded-full border-2 border-[#131313]"></span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1">
+<span class="text-xs font-headline-lg font-bold text-white tracking-tight leading-tight">Rudra Pratama</span>
+<span class="material-symbols-outlined text-[14px] text-[#c8ff00] icon-fill">verified</span>
+</div>
+<span class="text-[10px] font-label-caps text-[#8e9479] font-medium leading-none">B 4821 SQP</span>
+</div>
+</div>
+<!-- Right Controls: Saldo Pill + Notification Bell -->
+<div class="flex items-center gap-2">
+<!-- Ringkasan Saldo -->
+<div class="flex items-center gap-1.5 bg-[#131313]/90 border border-[#2a2a2a] px-3 py-1.5 rounded-full backdrop-blur-md shadow-lg">
+<span class="material-symbols-outlined text-[16px] text-[#c8ff00]">account_balance_wallet</span>
+<span class="text-xs font-headline-lg font-bold text-white tracking-tight">Rp 350.000</span>
+</div>
+<!-- Notifikasi Button with Badge -->
+<button class="relative w-9 h-9 rounded-full bg-[#131313]/90 border border-[#2a2a2a] flex items-center justify-center text-white hover:bg-[#252525] active:scale-95 transition-all shadow-lg">
+<span class="material-symbols-outlined text-[19px]">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-[#c8ff00] rounded-full"></span>
+</button>
+</div>
+</div>
+<!-- Big Interactive Online/Offline Switcher Bar -->
+<div class="pointer-events-auto w-full bg-[#1b1c1c]/95 border border-[#2f3232] rounded-2xl p-2 px-3 shadow-xl backdrop-blur-md flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="relative flex h-3 w-3 items-center justify-center" id="status-indicator-dot">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c8ff00] opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#c8ff00]"></span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-headline-lg font-bold text-white tracking-tight" id="status-headline">Online</span>
+<span class="text-gray-500 text-xs">•</span>
+<span class="text-[11px] font-label-caps text-[#c8ff00] font-semibold uppercase tracking-wider" id="status-subtext">Siap Terima Order</span>
+</div>
+<span class="text-[10px] font-body-sm text-[#8e9479] leading-tight">GPS Akurat • Sinyal 5G Baik</span>
+</div>
+</div>
+<!-- Toggle Action Pill Switch -->
+<button class="flex items-center gap-1.5 bg-[#263200] border border-[#c8ff00]/60 px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-sm" id="toggle-online-btn">
+<span class="text-[11px] font-headline-lg font-bold text-[#c8ff00]" id="toggle-label-text">AKTIF</span>
+<span class="material-symbols-outlined text-[20px] text-[#c8ff00] icon-fill" id="toggle-icon-glyph">toggle_on</span>
+</button>
+</div>
+</header>
+<!-- ========================================== -->
+<!-- 3. FLOATING MAP CONTROL BUTTONS            -->
+<!-- ========================================== -->
+<div class="fixed right-4 top-[148px] z-30 flex flex-col gap-2 pointer-events-auto">
+<!-- Compass / Heading Button -->
+<button class="w-10 h-10 rounded-xl bg-[#191a1a]/90 hover:bg-[#252626] border border-[#2c2d2d] text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 transition-transform" title="Kompas">
+<span class="material-symbols-outlined text-[20px] text-[#ff6b00]">explore</span>
+</button>
+<!-- Traffic / Layer Toggle -->
+<button class="w-10 h-10 rounded-xl bg-[#191a1a]/90 hover:bg-[#252626] border border-[#2c2d2d] text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 transition-transform" title="Layer Lalu Lintas">
+<span class="material-symbols-outlined text-[20px] text-[#c8ff00]">traffic</span>
+</button>
+<!-- Re-center / GPS My Location -->
+<button class="w-10 h-10 rounded-xl bg-[#191a1a]/90 hover:bg-[#252626] border border-[#c8ff00]/50 text-[#c8ff00] flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 transition-transform" title="Lokasi Driver">
+<span class="material-symbols-outlined text-[20px] icon-fill">my_location</span>
+</button>
+<!-- Zoom In -->
+<button class="w-10 h-9 rounded-t-xl bg-[#191a1a]/90 hover:bg-[#252626] border-t border-x border-[#2c2d2d] text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-95 transition-transform mt-1" title="Perbesar">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+<!-- Zoom Out -->
+<button class="w-10 h-9 rounded-b-xl bg-[#191a1a]/90 hover:bg-[#252626] border-b border-x border-[#2c2d2d] text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-95 transition-transform -mt-2" title="Perkecil">
+<span class="material-symbols-outlined text-[18px]">remove</span>
+</button>
+</div>
+<!-- Current Area Location Pill (Bottom Left floating above card) -->
+<div class="fixed left-4 bottom-[285px] z-30 pointer-events-auto">
+<div class="flex items-center gap-1.5 bg-[#131414]/90 border border-[#2a2a2a] px-3 py-1.5 rounded-full backdrop-blur-md shadow-md text-white">
+<span class="material-symbols-outlined text-[15px] text-[#c8ff00]">navigation</span>
+<span class="text-xs font-headline-lg font-semibold text-white tracking-tight">Jl. Jend. Sudirman, Jakarta</span>
+</div>
+</div>
+<!-- ========================================== -->
+<!-- 4. FLOATING BOTTOM SHEET: EARNINGS & STATS -->
+<!-- ========================================== -->
+<div class="fixed left-0 right-0 bottom-20 z-30 px-3 pointer-events-none">
+<div class="pointer-events-auto bg-[#1b1c1c]/95 border border-[#2d3030] rounded-2xl p-3.5 shadow-2xl backdrop-blur-md flex flex-col gap-3 max-w-lg mx-auto">
+<!-- Handle bar indicator -->
+<div class="w-10 h-1 bg-white/20 rounded-full mx-auto -mt-1 mb-0.5"></div>
+<!-- Daily Earnings Header Row -->
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] font-label-caps text-[#8e9479] uppercase tracking-wider font-semibold">Pendapatan Hari Ini</span>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="text-[26px] font-currency-display text-white font-extrabold tracking-tight leading-none">Rp 350.000</span>
+<span class="text-[11px] font-headline-lg text-[#c8ff00] font-bold bg-[#c8ff00]/10 px-1.5 py-0.5 rounded">+18%</span>
+</div>
+</div>
+<!-- Tarik / Detail Dompet Button -->
+<button class="bg-[#c8ff00] hover:bg-[#b0e000] text-[#161f00] px-3.5 py-2 rounded-xl flex items-center gap-1 font-headline-lg font-bold text-xs transition-all active:scale-95 shadow-md shadow-[#c8ff00]/20">
+<span>Tarik Saldo</span>
+<span class="material-symbols-outlined text-[16px] font-bold">arrow_forward</span>
+</button>
+</div>
+<!-- 3 Core Driver Performance Metrics Grid -->
+<div class="grid grid-cols-3 gap-2">
+<!-- Metric 1: Order Selesai -->
+<div class="bg-[#131414] p-2.5 rounded-xl flex flex-col items-center justify-center text-center border border-[#252828]">
+<div class="flex items-center gap-1 text-[#8e9479] mb-0.5">
+<span class="material-symbols-outlined text-[17px]">two_wheeler</span>
+</div>
+<span class="text-lg font-headline-xl text-white font-bold leading-tight">14</span>
+<span class="text-[9.5px] font-label-caps text-[#8e9479] uppercase tracking-wider font-medium">Order Selesai</span>
+</div>
+<!-- Metric 2: Rating -->
+<div class="bg-[#131414] p-2.5 rounded-xl flex flex-col items-center justify-center text-center border border-[#252828]">
+<div class="flex items-center gap-1 text-[#c8ff00] mb-0.5">
+<span class="material-symbols-outlined text-[17px] icon-fill">star</span>
+</div>
+<span class="text-lg font-headline-xl text-white font-bold leading-tight">4.98</span>
+<span class="text-[9.5px] font-label-caps text-[#8e9479] uppercase tracking-wider font-medium">Rating Driver</span>
+</div>
+<!-- Metric 3: Waktu Online -->
+<div class="bg-[#131414] p-2.5 rounded-xl flex flex-col items-center justify-center text-center border border-[#252828]">
+<div class="flex items-center gap-1 text-[#8e9479] mb-0.5">
+<span class="material-symbols-outlined text-[17px]">schedule</span>
+</div>
+<span class="text-lg font-headline-xl text-white font-bold leading-tight">6j 30m</span>
+<span class="text-[9.5px] font-label-caps text-[#8e9479] uppercase tracking-wider font-medium">Waktu Online</span>
+</div>
+</div>
+<!-- Quick Action Dual Buttons: Tujuan Saya & Peluang Panas -->
+<div class="grid grid-cols-2 gap-2 pt-0.5">
+<!-- Tujuan Saya (Filter Arah Pulang) -->
+<button class="bg-[#242626] hover:bg-[#2e3030] text-white p-2 px-3 rounded-xl border border-[#353838] flex items-center justify-center gap-1.5 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[18px] text-[#c8ff00]">near_me</span>
+<div class="flex flex-col text-left">
+<span class="text-[11px] font-headline-lg font-bold text-white leading-tight">Tujuan Saya</span>
+<span class="text-[9px] font-body-sm text-[#8e9479] leading-tight">Filter arah pulang</span>
+</div>
+</button>
+<!-- Peluang Area Ramai -->
+<button class="bg-[#242626] hover:bg-[#2e3030] text-white p-2 px-3 rounded-xl border border-[#353838] flex items-center justify-center gap-1.5 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[18px] text-[#ff6b00]">local_fire_department</span>
+<div class="flex flex-col text-left">
+<span class="text-[11px] font-headline-lg font-bold text-white leading-tight">Peluang Panas</span>
+<span class="text-[9px] font-body-sm text-[#8e9479] leading-tight">Grand Indonesia</span>
+</div>
+</button>
+</div>
+</div>
+</div>
+<!-- ========================================== -->
+<!-- 5. FIXED BOTTOM NAVIGATION BAR             -->
+<!-- ========================================== -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 h-20 bg-[#131313]/95 backdrop-blur-md border-t border-[#2a2a2a] flex items-center justify-around px-4 shadow-[0_-4px_24px_rgba(0,0,0,0.6)]">
+<!-- Tab 1: Beranda (Active) -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group">
+<div class="bg-[#c8ff00] text-[#161f00] px-4 py-1 rounded-full flex items-center justify-center shadow-sm transition-transform group-active:scale-90">
+<span class="material-symbols-outlined icon-fill text-[20px]">two_wheeler</span>
+</div>
+<span class="text-[11px] font-headline-lg font-bold text-[#c8ff00] mt-1 tracking-tight">Beranda</span>
+</button>
+<!-- Tab 2: Riwayat -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-[#8e9479] hover:text-white transition-colors">
+<div class="px-4 py-1 flex items-center justify-center transition-transform group-active:scale-90">
+<span class="material-symbols-outlined text-[22px]">history</span>
+</div>
+<span class="text-[11px] font-body-sm font-medium mt-1">Riwayat</span>
+</button>
+<!-- Tab 3: Saldo -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-[#8e9479] hover:text-white transition-colors">
+<div class="px-4 py-1 flex items-center justify-center transition-transform group-active:scale-90">
+<span class="material-symbols-outlined text-[22px]">account_balance_wallet</span>
+</div>
+<span class="text-[11px] font-body-sm font-medium mt-1">Saldo</span>
+</button>
+<!-- Tab 4: Akun -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-[#8e9479] hover:text-white transition-colors">
+<div class="px-4 py-1 flex items-center justify-center transition-transform group-active:scale-90">
+<span class="material-symbols-outlined text-[22px]">person</span>
+</div>
+<span class="text-[11px] font-body-sm font-medium mt-1">Akun</span>
+</button>
+</nav>
+<!-- ========================================== -->
+<!-- JAVASCRIPT LOGIC                           -->
+<!-- ========================================== -->
+<script>
+  (function() {
+    const toggleBtn = document.getElementById('toggle-online-btn');
+    const headline = document.getElementById('status-headline');
+    const subtext = document.getElementById('status-subtext');
+    const labelText = document.getElementById('toggle-label-text');
+    const iconGlyph = document.getElementById('toggle-icon-glyph');
+    const dot = document.getElementById('status-indicator-dot');
+    
+    let isOnline = true;
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        isOnline = !isOnline;
+        if (isOnline) {
+          headline.textContent = 'Online';
+          subtext.textContent = 'Siap Terima Order';
+          subtext.className = 'text-[11px] font-label-caps text-[#c8ff00] font-semibold uppercase tracking-wider';
+          labelText.textContent = 'AKTIF';
+          labelText.className = 'text-[11px] font-headline-lg font-bold text-[#c8ff00]';
+          iconGlyph.textContent = 'toggle_on';
+          iconGlyph.className = 'material-symbols-outlined text-[20px] text-[#c8ff00] icon-fill';
+          toggleBtn.className = 'flex items-center gap-1.5 bg-[#263200] border border-[#c8ff00]/60 px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-sm';
+          dot.innerHTML = `
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c8ff00] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#c8ff00]"></span>
+          `;
+        } else {
+          headline.textContent = 'Offline';
+          subtext.textContent = 'Istirahat / Tidak Menerima';
+          subtext.className = 'text-[11px] font-label-caps text-gray-400 font-semibold uppercase tracking-wider';
+          labelText.textContent = 'NONAKTIF';
+          labelText.className = 'text-[11px] font-headline-lg font-bold text-gray-400';
+          iconGlyph.textContent = 'toggle_off';
+          iconGlyph.className = 'material-symbols-outlined text-[20px] text-gray-400';
+          toggleBtn.className = 'flex items-center gap-1.5 bg-[#252525] border border-gray-600 px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-sm';
+          dot.innerHTML = `
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-gray-500"></span>
+          `;
+        }
+      });
+    }
+  })();
+</script>
+</body></html>

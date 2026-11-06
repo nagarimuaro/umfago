@@ -47,7 +47,6 @@ export type ProfileMenuItem = {
 
 export const ProfileMenu: readonly ProfileMenuItem[] = [
   { id: 'settings', label: 'Profile Settings', icon: 'person' },
-  { id: 'payment', label: 'Payment Methods', icon: 'credit-card' },
   { id: 'addresses', label: 'Saved Addresses', icon: 'location-on' },
   { id: 'safety', label: 'Safety Center', icon: 'verified-user' },
   { id: 'help', label: 'Help & Support', icon: 'help' },

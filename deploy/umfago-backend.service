@@ -1,0 +1,28 @@
+[Unit]
+Description=UmfaGo Backend API & WebSocket Service
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/umfago
+ExecStart=/var/www/umfago/bin/umfago-api
+Restart=always
+RestartSec=5s
+
+# Limit resource
+LimitNOFILE=65535
+
+# Environment variables
+Environment=GIN_MODE=release
+EnvironmentFile=/var/www/umfago/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=umfago-api
+
+[Install]
+WantedBy=multi-user.target

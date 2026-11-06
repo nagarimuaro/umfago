@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ds/button';
@@ -13,22 +13,28 @@ import { StatCard } from '@/components/profile/stat-card';
 import { Palette, Radius, Sizes, Spacing } from '@/constants/design-system';
 import { ProfileAccount, ProfileLogoutLabel, ProfileMenu, ProfileStats } from '@/constants/profile';
 import { useAuth } from '@/hooks/use-auth';
+import { ENV } from '@/constants/env';
 
-/**
- * Account profile screen.
- *
- * The menu rows have no destination screens yet, so they render without an `onPress`:
- * the chevrons stay for visual fidelity, but the rows are not announced as buttons. The
- * edit button is marked disabled for the same reason, which costs nothing visually. Log
- * Out stays enabled: `Button`'s disabled state dims it to 40%, which the design does not
- * draw, so it waits for an auth backend rather than losing its colour.
- */
+const BACKEND_URL = ENV.API_URL;
+
 export default function AccountScreen() {
-  const { user, refreshProfile, logout } = useAuth();
+  const { user, token, refreshProfile, logout } = useAuth();
+  const [ridesCount, setRidesCount] = useState<number | null>(null);
 
   useEffect(() => {
     refreshProfile();
-  }, []);
+    if (token) {
+      fetch(`${BACKEND_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          const list = data.orders || [];
+          setRidesCount(list.length);
+        })
+        .catch(() => {});
+    }
+  }, [token]);
 
   const handleLogout = async () => {
     await logout();
@@ -37,13 +43,17 @@ export default function AccountScreen() {
 
   const cleanName = (user?.name || ProfileAccount.name).replace(/\s*\(penumpang\)\s*/i, '').trim();
 
+  const dynamicStats = ProfileStats.map((stat) => {
+    if (stat.id === 'rides' && ridesCount !== null) {
+      return { ...stat, value: ridesCount.toString() };
+    }
+    return stat;
+  });
+
   const handleMenuPress = (id: string) => {
     switch (id) {
       case 'settings':
         router.push('/profile/edit');
-        break;
-      case 'payment':
-        router.push('/profile/payment');
         break;
       case 'addresses':
         router.push('/profile/addresses');
@@ -81,7 +91,7 @@ export default function AccountScreen() {
           </View>
 
           <View style={styles.stats}>
-            {ProfileStats.map((stat) => (
+            {dynamicStats.map((stat) => (
               <StatCard key={stat.id} stat={stat} />
             ))}
           </View>
@@ -121,7 +131,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.edgeMargin,
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xl,
+    paddingBottom: 90,
     gap: Spacing.lg,
   },
   header: {

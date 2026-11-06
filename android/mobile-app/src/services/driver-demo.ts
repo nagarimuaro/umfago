@@ -1,9 +1,7 @@
-import { Platform } from 'react-native';
-
+import { ENV } from '@/constants/env';
 import type { Driver } from '@/types/order';
 
-const BACKEND_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
+const BACKEND_URL = ENV.API_URL;
 
 async function getDriverToken(vehicleType: 'car' | 'motorcycle'): Promise<string | null> {
   const email = vehicleType === 'car' ? 'driver.mobil@openjek.id' : 'driver.motor@openjek.id';
@@ -64,7 +62,8 @@ async function clearOngoingDriverOrders(token: string) {
  */
 export async function autoAcceptDriverOrder(
   orderUUID: string,
-  vehicleType: 'car' | 'motorcycle'
+  vehicleType: 'car' | 'motorcycle',
+  pickupCoords?: { lat: number; lon: number }
 ): Promise<Driver | null> {
   const token = await getDriverToken(vehicleType);
   if (!token) return null;
@@ -103,6 +102,9 @@ export async function autoAcceptDriverOrder(
     }
 
     const isCar = vehicleType === 'car';
+    const baseLat = pickupCoords?.lat ?? -0.664159;
+    const baseLon = pickupCoords?.lon ?? 100.939844;
+
     return {
       id: isCar ? 'drv-car' : 'drv-motor',
       name: isCar ? 'Hendra Wijaya' : 'Budi Santoso',
@@ -113,6 +115,8 @@ export async function autoAcceptDriverOrder(
         ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400'
         : 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
       etaMinutes: 2,
+      lat: baseLat + 0.005,
+      lon: baseLon + 0.004,
     };
   } catch {
     return null;

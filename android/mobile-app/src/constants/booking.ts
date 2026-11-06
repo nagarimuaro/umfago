@@ -43,7 +43,7 @@ export const ServiceOptions: readonly ServiceOption[] = [
   },
   {
     id: 'food',
-    label: 'OpenJek Food',
+    label: 'UmfaGo Food',
     description: 'Pesan antar kuliner & resto',
     fare: 9000,
     etaMinutes: 25,
@@ -57,14 +57,14 @@ export const ServiceOptions: readonly ServiceOption[] = [
   },
   {
     id: 'mart',
-    label: 'OpenJek Mart',
+    label: 'UmfaGo Mart',
     description: 'Belanja harian & minimarket',
     fare: 10000,
     etaMinutes: 20,
   },
   {
     id: 'med',
-    label: 'OpenJek Med',
+    label: 'UmfaGo Med',
     description: 'Beli obat & kebutuhan apotek',
     fare: 12000,
     etaMinutes: 15,
@@ -78,11 +78,11 @@ export type PaymentMethodOption = {
 };
 
 /**
- * Wallet first, matching the Stitch confirm screen, which is drawn with the OpenJek
+ * Wallet first, matching the Stitch confirm screen, which is drawn with the UmfaGo
  * wallet selected. Only the wallet carries a balance to show underneath.
  */
 export const PaymentMethods: readonly PaymentMethodOption[] = [
-  { id: 'wallet', label: 'Dompet OpenJek', icon: 'account-balance-wallet' },
+  { id: 'wallet', label: 'Dompet UmfaGo', icon: 'account-balance-wallet' },
   { id: 'cash', label: 'Tunai', icon: 'payments' },
 ] as const;
 

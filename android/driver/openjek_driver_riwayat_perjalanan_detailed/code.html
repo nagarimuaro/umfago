@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OpenJek Driver History</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "on-tertiary-container": "#636565",
+          "on-primary-fixed": "#161f00",
+          "surface-tint": "#a8d700",
+          "on-primary": "#273500",
+          "secondary-container": "#474746",
+          "primary-fixed-dim": "#a8d700",
+          "on-tertiary": "#2f3131",
+          "outline-variant": "#434933",
+          "secondary-fixed-dim": "#c8c6c5",
+          "surface-container-highest": "#353535",
+          "surface-container": "#1f2020",
+          "on-secondary-fixed-variant": "#474746",
+          "surface-variant": "#353535",
+          "on-error": "#690005",
+          "on-secondary-fixed": "#1c1b1b",
+          "surface-container-low": "#1b1c1c",
+          "tertiary": "#ffffff",
+          "primary": "#ffffff",
+          "on-tertiary-fixed": "#1a1c1c",
+          "on-surface-variant": "#c4caac",
+          "on-error-container": "#ffdad6",
+          "primary-container": "#c0f500",
+          "tertiary-container": "#e2e2e2",
+          "tertiary-fixed": "#e2e2e2",
+          "on-tertiary-fixed-variant": "#454747",
+          "tertiary-fixed-dim": "#c6c6c7",
+          "secondary": "#c8c6c5",
+          "on-primary-container": "#546d00",
+          "primary-fixed": "#c0f500",
+          "error": "#ffb4ab",
+          "on-primary-fixed-variant": "#3b4d00",
+          "error-container": "#93000a",
+          "surface-bright": "#393939",
+          "surface-container-lowest": "#0e0e0e",
+          "inverse-primary": "#4f6600",
+          "inverse-on-surface": "#303030",
+          "secondary-fixed": "#e5e2e1",
+          "surface": "#131313",
+          "outline": "#8e9479",
+          "background": "#121212",
+          "on-surface": "#e4e2e1",
+          "inverse-surface": "#e4e2e1",
+          "on-background": "#e4e2e1",
+          "on-secondary": "#313030",
+          "surface-container-high": "#2a2a2a",
+          "surface-dim": "#131313",
+          "on-secondary-container": "#b7b5b4"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "gutter": "16px",
+          "margin-desktop": "64px",
+          "md": "24px",
+          "sm": "12px",
+          "lg": "48px",
+          "xl": "80px",
+          "base": "8px",
+          "xs": "4px",
+          "margin-mobile": "16px",
+          "edge-margin": "16px"
+        },
+        "fontFamily": {
+          "headline-lg-mobile": ["Hanken Grotesk"],
+          "label-caps": ["JetBrains Mono"],
+          "body-md": ["Inter"],
+          "headline-lg": ["Hanken Grotesk"],
+          "headline-xl": ["Hanken Grotesk"],
+          "currency-display": ["Hanken Grotesk"],
+          "body-sm": ["Inter"],
+          "headline": ["Hanken Grotesk"],
+          "body": ["Inter"],
+          "label": ["JetBrains Mono"]
+        },
+        "fontSize": {
+          "headline-lg-mobile": ["28px", { lineHeight: "36px", fontWeight: "700" }],
+          "label-caps": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+          "body-md": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+          "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "700" }],
+          "headline-xl": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "800" }],
+          "currency-display": ["24px", { lineHeight: "32px", fontWeight: "700" }],
+          "body-sm": ["14px", { lineHeight: "20px", fontWeight: "400" }]
+        }
+      },
+    },
+  }
+</script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono-num { font-family: 'JetBrains Mono', monospace; }
+        .font-headline { font-family: 'Hanken Grotesk', sans-serif; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col pt-16 pb-24 selection:bg-primary-container selection:text-black">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-edge-margin h-16 bg-[#121212]/95 backdrop-blur-md border-b border-[#2a2a2a]">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-full overflow-hidden border border-[#2e2f2f] focus:outline-none focus:ring-2 focus:ring-primary-container">
+<img alt="Driver Profile" class="w-full h-full object-cover" data-alt="A close-up portrait of a professional driver wearing a clean uniform, smiling slightly, set against a neutral, well-lit background. The lighting is soft and even, typical of a modern corporate ID photo." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzksuySjDjEcm6euiucjmtvoPQZf94GCOJntWJ3V1-u4zyX0dMBor4XiN3-gCpNChbKpAgIxS84ztzNdmrI-Rrh2pwiOChOxqp6VcX2KLOVoqEQKJDZcWlVN6c60oWZEGAcc3LUbkYsBCL3H0A0cSuJ9onIO_-qI2SQD5jnqly9iMQmtWtdmSFjYAQyC34-SSXjuD5ezlb16fBq7ADkgVxoTV5isQ_GXlhwGS0NY_O9yzrkarsxHxJ"/>
+</button>
+<h1 class="text-xl font-headline font-bold text-white tracking-tight">OpenJek</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center text-[#8e9479] hover:text-white hover:bg-[#1f2020] rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow px-edge-margin py-4 space-y-5 overflow-y-auto max-w-2xl mx-auto w-full">
+<!-- Search Bar -->
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9479] text-[20px]">search</span>
+<input class="w-full h-11 pl-11 pr-4 bg-[#1b1c1c] border border-[#2e2f2f] rounded-xl text-sm text-white placeholder-[#8e9479] focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all" placeholder="Cari riwayat perjalanan..." type="text"/>
+</div>
+<!-- Page Header & Filter Toggle -->
+<section class="space-y-3">
+<h2 class="text-2xl font-headline font-bold text-white tracking-tight">Riwayat Perjalanan</h2>
+<div class="flex bg-[#1b1c1c] rounded-xl p-1 border border-[#2a2a2a] relative">
+<button class="relative w-1/2 py-2 text-center text-black font-semibold text-xs rounded-lg bg-primary-container shadow-sm transition-all">Selesai</button>
+<button class="relative w-1/2 py-2 text-center text-[#8e9479] hover:text-white font-medium text-xs rounded-lg transition-colors">Dibatalkan</button>
+</div>
+</section>
+<!-- Summary Cards (Bento Style) -->
+<section class="grid grid-cols-2 gap-3">
+<div class="bg-[#1f2020] border border-[#2a2a2a] rounded-xl p-4 shadow-sm flex flex-col justify-between">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary-container text-[20px]" data-icon="trending_up">trending_up</span>
+<span class="text-xs text-[#8e9479] font-medium">Pendapatan Hari Ini</span>
+</div>
+<span class="text-lg text-white font-mono-num font-bold tracking-tight">Rp 142.500</span>
+</div>
+<div class="bg-[#1f2020] border border-[#2a2a2a] rounded-xl p-4 shadow-sm flex flex-col justify-between">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary-container text-[20px]" data-icon="route">route</span>
+<span class="text-xs text-[#8e9479] font-medium">Total Pesanan</span>
+</div>
+<span class="text-lg text-white font-mono-num font-bold tracking-tight">12</span>
+</div>
+</section>
+<!-- History List -->
+<section class="space-y-5 pb-8">
+<!-- Date Group: Today -->
+<div class="space-y-3">
+<h3 class="text-xs font-semibold text-[#8e9479] uppercase tracking-wider sticky top-16 bg-[#121212]/95 backdrop-blur-sm py-1.5 z-10">Hari Ini</h3>
+<!-- Trip Item 1 (Ride) -->
+<article class="bg-[#1f2020] border border-[#2a2a2a] hover:border-[#434933] rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+<div class="flex justify-between items-start mb-3 pb-3 border-b border-[#2e2f2f]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-black">
+<span class="material-symbols-outlined text-[20px]" data-icon="directions_car">directions_car</span>
+</div>
+<div>
+<h4 class="text-sm font-semibold text-white">OpenRide</h4>
+<p class="text-xs text-[#8e9479] font-mono-num">14:30 • 4.2 km</p>
+</div>
+</div>
+<div class="text-right">
+<span class="block text-base font-mono-num font-bold text-white">Rp 18.500</span>
+<span class="inline-block px-2 py-0.5 mt-1 bg-[#162a14] border border-[#23581e] text-primary-container text-[10px] font-bold rounded-full tracking-wider uppercase">SELESAI</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-0.5">radio_button_checked</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">124 Main Street, Downtown</span>
+</div>
+<div class="pl-[7px] border-l-2 border-dashed border-[#434933] ml-[3px] h-3 my-[-3px]"></div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-[#ff8b7b] text-[16px] mt-0.5">location_on</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">890 Tech Boulevard, Westside</span>
+</div>
+</div>
+</article>
+<!-- Trip Item 2 (Food) -->
+<article class="bg-[#1f2020] border border-[#2a2a2a] hover:border-[#434933] rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+<div class="flex justify-between items-start mb-3 pb-3 border-b border-[#2e2f2f]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#2a2a2a] flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[20px]" data-icon="restaurant">restaurant</span>
+</div>
+<div>
+<h4 class="text-sm font-semibold text-white">OpenFood</h4>
+<p class="text-xs text-[#8e9479] font-mono-num">12:15 • 2.8 km</p>
+</div>
+</div>
+<div class="text-right">
+<span class="block text-base font-mono-num font-bold text-white">Rp 12.000</span>
+<span class="inline-block px-2 py-0.5 mt-1 bg-[#162a14] border border-[#23581e] text-primary-container text-[10px] font-bold rounded-full tracking-wider uppercase">SELESAI</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-0.5">storefront</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">Burger King, 5th Ave</span>
+</div>
+<div class="pl-[7px] border-l-2 border-dashed border-[#434933] ml-[3px] h-3 my-[-3px]"></div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary text-[16px] mt-0.5">home</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">Apt 4B, 1200 Riverside Dr</span>
+</div>
+</div>
+</article>
+</div>
+<!-- Date Group: Yesterday -->
+<div class="space-y-3 mt-5">
+<h3 class="text-xs font-semibold text-[#8e9479] uppercase tracking-wider sticky top-16 bg-[#121212]/95 backdrop-blur-sm py-1.5 z-10">Kemarin</h3>
+<!-- Trip Item 3 (Send) -->
+<article class="bg-[#1f2020] border border-[#2a2a2a] hover:border-[#434933] rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+<div class="flex justify-between items-start mb-3 pb-3 border-b border-[#2e2f2f]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-black">
+<span class="material-symbols-outlined text-[20px]" data-icon="directions_car">directions_car</span>
+</div>
+<div>
+<h4 class="text-sm font-semibold text-white">OpenRide</h4>
+<p class="text-xs text-[#8e9479] font-mono-num">Hari ini, 14:30 • 4.2 km</p>
+</div>
+</div>
+<div class="text-right">
+<span class="block text-base font-mono-num font-bold text-white">Rp 18.500</span>
+<span class="inline-block px-2 py-0.5 mt-1 bg-[#162a14] border border-[#23581e] text-primary-container text-[10px] font-bold rounded-full tracking-wider uppercase">SELESAI</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container text-[16px] mt-0.5">radio_button_checked</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">124 Main Street, Downtown</span>
+</div>
+<div class="pl-[7px] border-l-2 border-dashed border-[#434933] ml-[3px] h-3 my-[-3px]"></div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-[#ff8b7b] text-[16px] mt-0.5">location_on</span>
+<span class="text-xs text-[#c8c6c5] truncate font-medium">890 Tech Boulevard, Westside</span>
+</div>
+</div>
+</article>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2.5 pb-safe bg-[#121212]/95 backdrop-blur-lg border-t border-[#2a2a2a] shadow-[0px_-4px_20px_rgba(0,0,0,0.5)] md:hidden">
+<!-- Beranda (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="home">home</span>
+<span class="font-label text-xs font-medium">Beranda</span>
+</a>
+<!-- Riwayat (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-black rounded-xl px-4 py-1.5 active:scale-95 transition-all duration-200 shadow-sm" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px] text-black" data-icon="history" style="font-variation-settings: 'FILL' 1;">history</span>
+<span class="font-label text-xs font-bold text-black">Riwayat</span>
+</a>
+<!-- Saldo (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-label text-xs font-medium">Saldo</span>
+</a>
+<!-- Akun (Inactive) -->
+<a class="flex flex-col items-center justify-center text-secondary hover:text-white px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-0.5 text-[22px]" data-icon="person">person</span>
+<span class="font-label text-xs font-medium">Akun</span>
+</a>
+</nav>
+<!-- Desktop Nav Placeholder (Hidden on Mobile) -->
+<nav class="hidden md:flex fixed bottom-0 w-full h-16 bg-[#121212] items-center justify-center border-t border-[#2a2a2a]">
+<span class="text-[#8e9479] text-sm">Desktop Navigation Not Rendered (Mobile View Recommended)</span>
+</nav>
+</body></html>

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ds/button';
 import { Card } from '@/components/ds/card';
@@ -9,13 +9,24 @@ import { FontFamily, Overlay, Palette, Radius, Sizes, Spacing } from '@/constant
 import { Wallet } from '@/constants/home-content';
 
 export type WalletCardProps = {
+  balance?: number;
+  label?: string;
   onDetail?: () => void;
   onTopUp?: () => void;
   onPay?: () => void;
   onTransfer?: () => void;
 };
 
-export function WalletCard({ onDetail, onTopUp, onPay, onTransfer }: WalletCardProps) {
+export function WalletCard({
+  balance,
+  label = Wallet.label,
+  onDetail,
+  onTopUp,
+  onPay,
+  onTransfer,
+}: WalletCardProps) {
+  const currentBalance = balance !== undefined ? balance : Wallet.balance;
+
   return (
     <Card
       level={2}
@@ -29,20 +40,24 @@ export function WalletCard({ onDetail, onTopUp, onPay, onTransfer }: WalletCardP
         equivalent without a native blur package, so it renders as a soft
         translucent disc — close in tone, harder-edged than the web original.
       */}
-      <View style={styles.decoration} pointerEvents="none" />
+      <View style={[styles.decoration, { pointerEvents: 'none' }]} />
 
       <View style={styles.header}>
-        <View style={styles.headerText}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Detail ${label}, saldo ${formatRupiah(currentBalance)}`}
+          onPress={onDetail}
+          style={styles.headerText}>
           <DSText variant="labelSm" color={Palette.surfaceContainer}>
-            {Wallet.label}
+            {label}
           </DSText>
           <DSText
             variant="headlineLgMobile"
             color={Palette.surfaceContainerLowest}
             style={styles.balance}>
-            {formatRupiah(Wallet.balance)}
+            {formatRupiah(currentBalance)}
           </DSText>
-        </View>
+        </Pressable>
 
         <IconButton
           icon="account-balance-wallet"

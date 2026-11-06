@@ -63,4 +63,69 @@ export const FoodMenuItems: readonly FoodMenuItem[] = [
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCfU7InErQZOuQHr2dlTMybF9G9sxXFC0hvPSjDOPxSkVdkoK4XINUXEGzFyJi7dChe1mZRJVhcS7X96b2_-ZLAy5Cr0J_2npPkXzB-3sUdy7RNzqEXq7T-l95br7TaJwJSersjy736KRJieQjpcIlCG4Sn31NqiLbPV7_pYUo6dZFHFRPHhMAiF79khk8fVl6i2X7vju3tO7t3DM2brsRrrczbdaUCHKLeFqLjJIXKfsyLYtzcZ4r-',
   },
+  {
+    id: 'smash-combo-feast',
+    categoryId: 'combos',
+    name: 'Smash Combo Feast',
+    description: 'Double Smash Burger + Truffle Fries + Coca Cola. Hemat 15%!',
+    price: 75000,
+    tag: 'Best Value',
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuADs-xtEP8BTrPoyXwFEZKwlf8dt3TfPdaYPm43KR_OUohncemD87g3cZw5m7NKig20Jt9IuOmp1hjTRq3zNzZj-U5JzzMfswoCIlEXBYFfG1DfTPw3zH2fSSBp17G49_WUl61S05ojVC4YdpqrUtgs7ylee0w8q5ZgAV_ClsYDa4-aiz1vuBHyCMquQrW2rhiQ0B106kbR-IfRiwxrXdJ5uWZPTXY7z1BVnPRlZGeGI_EsghK_Syci',
+  },
+  {
+    id: 'cheeseburger-meal',
+    categoryId: 'combos',
+    name: 'Cheeseburger Meal',
+    description: 'Classic Cheeseburger + Crispy French Fries + Iced Lemon Tea.',
+    price: 55000,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuAwW3oYfiCBbbCs3iH_4oWBqzG0F4S7j6osA3GIt7axoeOAlLolr6kZjILXAAnUY65-czGWhQwEXQYDH_DLKMMuy33QwQGUgYHR9yYO2HXWpmT3NlvzMxfWPeWZ-XTYysYLXpilHungC7XBK1BzKdV4GNbQW8SNrZavZfZreT4kp6Xnbc7zhAudGeI_ghu4f3e30gxR2si78dzUNc_KpUiIPOF3lFYmFxILEjEcKfbPzRQ0BRn5PziO',
+  },
+  {
+    id: 'crispy-chicken-tenders',
+    categoryId: 'a-la-carte',
+    name: 'Crispy Chicken Tenders',
+    description: '4 potong dada ayam goreng krispi dengan saus spicy mayo gurih.',
+    price: 32000,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuB-YGPuCDenVDAHNdVk3lFVoTQmREiGaSqXYFJ4TZ7Vg-eeU42JpAjQN0JhMoHhsCKzrCKXv-em21_SgM7B7sCk-Bqi5WbkARYSKQxfEuKpQwkdViM5o5ds8jp-Aa0-KU7naCjlssYSekD6pQgxEhAhYsXXk3yUn1Z7o3ZPP_KGpG4XiLD38e0Cf3xjKQPivHstq0rjKkkACs7T3X2UEk7ZlFdlsMOqy-vRjdMR7ypy-JhCAxeVpplH',
+  },
+  {
+    id: 'cheesy-bacon-fries',
+    categoryId: 'a-la-carte',
+    name: 'Cheesy Bacon Loaded Fries',
+    description: 'Kentang goreng crinkle-cut dengan saus keju leleh cheddar dan taburan daging asap renyah.',
+    price: 30000,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCfU7InErQZOuQHr2dlTMybF9G9sxXFC0hvPSjDOPxSkVdkoK4XINUXEGzFyJi7dChe1mZRJVhcS7X96b2_-ZLAy5Cr0J_2npPkXzB-3sUdy7RNzqEXq7T-l95br7TaJwJSersjy736KRJieQjpcIlCG4Sn31NqiLbPV7_pYUo6dZFHFRPHhMAiF79khk8fVl6i2X7vju3tO7t3DM2brsRrrczbdaUCHKLeFqLjJIXKfsyLYtzcZ4r-',
+  },
+  {
+    id: 'iced-lemon-tea',
+    categoryId: 'drinks',
+    name: 'Iced Lemon Tea',
+    description: 'Seduhan teh premium dingin dengan perasan lemon segar pilihan.',
+    price: 15000,
+    image:
+      'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=600&q=80',
+  },
+  {
+    id: 'chocolate-milkshake',
+    categoryId: 'drinks',
+    name: 'Creamy Chocolate Milkshake',
+    description: 'Milkshake cokelat kental dengan topping whipped cream dan taburan choco chips.',
+    price: 24000,
+    tag: 'Favorite',
+    image:
+      'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=600&q=80',
+  },
+  {
+    id: 'coca-cola-can',
+    categoryId: 'drinks',
+    name: 'Coca-Cola 330ml Can',
+    description: 'Minuman soda dingin segar penyegar dahaga.',
+    price: 12000,
+    image:
+      'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80',
+  },
 ] as const;

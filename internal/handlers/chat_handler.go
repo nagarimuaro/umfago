@@ -93,6 +93,11 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
+	// Tandai pesan-pesan sebelumnya dari lawan bicara sebagai terbaca karena user sudah membalas
+	_ = h.db.Model(&models.ChatMessage{}).
+		Where("order_uuid = ? AND receiver_id = ? AND is_read = false", order.UUID, userID).
+		Update("is_read", true).Error
+
 	// 3. Notifikasi via WebSocket
 	if h.hub != nil {
 		payload, _ := json.Marshal(map[string]interface{}{
@@ -152,6 +157,11 @@ func (h *ChatHandler) GetHistory(c *gin.Context) {
 		return
 	}
 
+	// Otomatis tandai pesan yang diterima user ini sebagai terbaca saat membuka percakapan
+	_ = h.db.Model(&models.ChatMessage{}).
+		Where("order_uuid = ? AND receiver_id = ? AND is_read = false", uuidParam, userID).
+		Update("is_read", true).Error
+
 	// chat_closed dikirim di sini supaya aplikasi tahu harus menyembunyikan kolom
 	// ketik tanpa menebak dari status order yang mungkin sudah basi di layarnya.
 	c.JSON(http.StatusOK, gin.H{
@@ -160,4 +170,31 @@ func (h *ChatHandler) GetHistory(c *gin.Context) {
 		"status":      order.Status,
 		"meta":        gin.H{"page": page, "per_page": perPage, "total": total},
 	})
+}
+
+// MarkAsRead - Menandai semua pesan dalam order ini sebagai telah dibaca
+func (h *ChatHandler) MarkAsRead(c *gin.Context) {
+	userID := c.GetUint(middleware.UserIDKey)
+	uuidParam := c.Param("uuid")
+
+	// Validasi kepemilikan order
+	var order models.Order
+	if err := h.db.Where("uuid = ?", uuidParam).First(&order).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+
+	if order.RiderID != userID && (order.DriverID == nil || *order.DriverID != userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized to access this chat"})
+		return
+	}
+
+	if err := h.db.Model(&models.ChatMessage{}).
+		Where("order_uuid = ? AND receiver_id = ? AND is_read = false", uuidParam, userID).
+		Update("is_read", true).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark as read"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Chat marked as read"})
 }

@@ -101,6 +101,7 @@ func NewTestDB(t testing.TB) *gorm.DB {
 		&models.Promo{},
 		&models.PromoUsage{},
 		&models.Notification{},
+		&models.UserAddress{},
 		&models.Product{},
 		&models.ProductEvent{},
 		&models.ServiceCatalog{},

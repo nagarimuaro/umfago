@@ -29,7 +29,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Izinkan OpenJek mengakses lokasi Anda untuk penjemputan perjalanan."
+          "locationAlwaysAndWhenInUsePermission": "Izinkan UmfaGo mengakses lokasi Anda untuk penjemputan perjalanan."
         }
       ],
       [

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"openjek-backend/internal/models"
@@ -95,7 +96,11 @@ func SeedEnterpriseDefaults(db *gorm.DB) {
 
 // SeedOperationalDemoData — semai user demo, produk merchant demo, promo demo, dan order demo.
 func SeedOperationalDemoData(db *gorm.DB) {
-	hashedPass, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	demoPass := os.Getenv("DEMO_PASSWORD")
+	if demoPass == "" {
+		demoPass = "password123"
+	}
+	hashedPass, _ := bcrypt.GenerateFromPassword([]byte(demoPass), bcrypt.DefaultCost)
 	roleRepo := NewRoleRepository(db)
 
 	// Pastikan ada customer demo
@@ -280,6 +285,11 @@ func SeedOperationalDemoData(db *gorm.DB) {
 				BusinessName:    "Restoran Sederhana Bundo",
 				BusinessAddress: "Jl. Veteran No. 12, Padang",
 				Category:        "makanan",
+				Lat:             -0.9450,
+				Lon:             100.3600,
+				Rating:          4.9,
+				ReviewCount:     120,
+				LogoURL:         "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500",
 				IsActive:        true,
 				IsOpen:          true,
 			}
@@ -304,16 +314,110 @@ func SeedOperationalDemoData(db *gorm.DB) {
 		}
 	}
 
+	// Pastikan ada merchant kuliner populer (Burger Broz)
+	var burgerUser models.User
+	if err := db.Where("email = ?", "burger.broz@openjek.id").First(&burgerUser).Error; err != nil {
+		burgerUser = models.User{
+			Name:       "Burger Broz Official",
+			Email:      "burger.broz@openjek.id",
+			Phone:      "081234567895",
+			Password:   string(hashedPass),
+			RoleCode:   models.RoleMerchant,
+			IsActive:   true,
+			IsVerified: true,
+			Balance:    540000,
+		}
+		if err := db.Create(&burgerUser).Error; err == nil {
+			_ = roleRepo.AssignRole(burgerUser.ID, models.RoleMerchant)
+			burgerProfile := models.MerchantProfile{
+				UserID:          burgerUser.ID,
+				BusinessName:    "Burger Broz",
+				BusinessAddress: "Jl. Khatib Sulaiman No. 42, Padang",
+				Category:        "burgers",
+				Lat:             -0.9312,
+				Lon:             100.3580,
+				Rating:          4.9,
+				ReviewCount:     350,
+				LogoURL:         "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
+				IsActive:        true,
+				IsOpen:          true,
+			}
+			if err := db.Create(&burgerProfile).Error; err == nil {
+				_ = db.Create(&models.Product{
+					MerchantID:  burgerProfile.ID,
+					Name:        "Classic Double Cheeseburger",
+					Description: "Dua lapis daging sapi panggang dengan double keju cheddar leleh dan saus spesial",
+					Price:       35000,
+					Category:    "must-try",
+					IsAvailable: true,
+				})
+				_ = db.Create(&models.Product{
+					MerchantID:  burgerProfile.ID,
+					Name:        "Smoky BBQ Bacon Burger",
+					Description: "Burger daging sapi dengan saus BBQ asap, onion ring renyah, dan keju",
+					Price:       38000,
+					Category:    "combos",
+					IsAvailable: true,
+				})
+				_ = db.Create(&models.Product{
+					MerchantID:  burgerProfile.ID,
+					Name:        "Crispy French Fries",
+					Description: "Kentang goreng renyah bumbu gurih khas Broz",
+					Price:       15000,
+					Category:    "a-la-carte",
+					IsAvailable: true,
+				})
+				_ = db.Create(&models.Product{
+					MerchantID:  burgerProfile.ID,
+					Name:        "Milkshake Cokelat Belgia",
+					Description: "Milkshake kental dengan cokelat impor Belgia yang manis pas",
+					Price:       18000,
+					Category:    "drinks",
+					IsAvailable: true,
+				})
+			}
+		}
+	}
+
+	// Alamat tersimpan awal untuk customer demo
+	if customer.ID != 0 {
+		var addrCount int64
+		db.Model(&models.UserAddress{}).Where("user_id = ?", customer.ID).Count(&addrCount)
+		if addrCount == 0 {
+			_ = db.Create(&models.UserAddress{
+				UserID:    customer.ID,
+				Label:     "Rumah",
+				Address:   "Jl. Sudirman No. 45, Padang Barat, Kota Padang",
+				Note:      "Pagar warna hitam samping toko buku",
+				Area:      "Padang Barat",
+				Lat:       -0.9471,
+				Lon:       100.4172,
+				Icon:      "home",
+				IsDefault: true,
+			})
+			_ = db.Create(&models.UserAddress{
+				UserID:    customer.ID,
+				Label:     "Kantor / Tempat Kerja",
+				Address:   "Plaza Andalas Lantai 3, Jl. Pemuda No. 1, Padang",
+				Note:      "Lobby timur",
+				Area:      "Padang Barat",
+				Lat:       -0.9250,
+				Lon:       100.3600,
+				Icon:      "work",
+				IsDefault: false,
+			})
+		}
+	}
+
 	// 4. Order Contoh (Order Selesai & Sedang Berjalan)
 	var custUser, dMotor, dMobil models.User
 	_ = db.Where("email = ?", "penumpang@openjek.id").First(&custUser).Error
 	_ = db.Where("email = ?", "driver.motor@openjek.id").First(&dMotor).Error
 	_ = db.Where("email = ?", "driver.mobil@openjek.id").First(&dMobil).Error
 
-	var orderCount int64
-	db.Model(&models.Order{}).Count(&orderCount)
-	if orderCount == 0 && custUser.ID != 0 && dMotor.ID != 0 {
-		now := time.Now()
+	now := time.Now()
+	var ord1 models.Order
+	if err := db.Where("uuid = ?", "OJ-ORD-1001").First(&ord1).Error; err != nil && custUser.ID != 0 && dMotor.ID != 0 {
 		accepted := now.Add(-25 * time.Minute)
 		arrived := now.Add(-20 * time.Minute)
 		picked := now.Add(-15 * time.Minute)
@@ -346,33 +450,50 @@ func SeedOperationalDemoData(db *gorm.DB) {
 			PickedUpAt:     &picked,
 			CompletedAt:    &completed,
 		})
+	}
 
-		// Order yang sedang berjalan
-		if dMobil.ID != 0 {
-			orderInProg := now.Add(-8 * time.Minute)
-			_ = db.Create(&models.Order{
-				UUID:           "OJ-ORD-1002",
-				RiderID:        custUser.ID,
-				DriverID:       &dMobil.ID,
-				Status:         models.StatusInProgress,
-				PickupLat:      -0.9300,
-				PickupLon:      100.3700,
-				PickupAddress:  "Hotel Grand Inna Padang",
-				DropoffLat:     -0.7869,
-				DropoffLon:     100.2809,
-				DropoffAddress: "Bandara Internasional Minangkabau (BIM)",
-				DistanceKm:     22.0,
-				FareAmount:     110000,
-				CustomerFee:    2000,
-				PlatformFee:    22000,
-				DriverEarning:  88000,
-				Currency:       "IDR",
-				PaymentMethod:  models.PaymentCash,
-				VehicleType:    "car",
-				AcceptedAt:     &orderInProg,
-				PickedUpAt:     &orderInProg,
-			})
-		}
+	// Order yang sedang berjalan
+	var ord2 models.Order
+	if err := db.Where("uuid = ?", "OJ-ORD-1002").First(&ord2).Error; err != nil && custUser.ID != 0 && dMobil.ID != 0 {
+		orderInProg := now.Add(-8 * time.Minute)
+		_ = db.Create(&models.Order{
+			UUID:           "OJ-ORD-1002",
+			RiderID:        custUser.ID,
+			DriverID:       &dMobil.ID,
+			Status:         models.StatusInProgress,
+			PickupLat:      -0.9300,
+			PickupLon:      100.3700,
+			PickupAddress:  "Hotel Grand Inna Padang",
+			DropoffLat:     -0.7869,
+			DropoffLon:     100.2809,
+			DropoffAddress: "Bandara Internasional Minangkabau (BIM)",
+			DistanceKm:     22.0,
+			FareAmount:     110000,
+			CustomerFee:    2000,
+			PlatformFee:    22000,
+			DriverEarning:  88000,
+			Currency:       "IDR",
+			PaymentMethod:  models.PaymentCash,
+			VehicleType:    "car",
+			AcceptedAt:     &orderInProg,
+			PickedUpAt:     &orderInProg,
+		})
+
+		// Seed pesan chat awal untuk OJ-ORD-1002
+		_ = db.Create(&models.ChatMessage{
+			OrderUUID:  "OJ-ORD-1002",
+			SenderID:   custUser.ID,
+			ReceiverID: dMobil.ID,
+			Message:    "Halo pak, saya tunggu di lobby utama hotel ya.",
+			IsRead:     true,
+		})
+		_ = db.Create(&models.ChatMessage{
+			OrderUUID:  "OJ-ORD-1002",
+			SenderID:   dMobil.ID,
+			ReceiverID: custUser.ID,
+			Message:    "Siap kak, saya pakai Avanza hitam BA 5678 AB, 3 menit lagi sampai.",
+			IsRead:     true,
+		})
 	}
 
 	// 5. Tiket Support / Dispute Contoh (§14)

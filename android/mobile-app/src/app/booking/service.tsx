@@ -1,9 +1,10 @@
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -25,7 +26,7 @@ import { Button } from '@/components/ds/button';
 import { DSText } from '@/components/ds/ds-text';
 import { Icon } from '@/components/ds/icon';
 import { IconButton } from '@/components/ds/icon-button';
-import { formatDistance, PaymentMethods, SavedPlaces, ServiceOptions } from '@/constants/booking';
+import { formatDistance, PaymentMethods, SavedPlaces } from '@/constants/booking';
 import { BookingCopy } from '@/constants/booking-content';
 import {
   Brand,
@@ -85,9 +86,11 @@ export default function ServiceScreen() {
   const [pinLocked, setPinLocked] = useState(false);
   const [confirmingLocation, setConfirmingLocation] = useState(false);
 
-  useEffect(() => {
-    refreshProfile().catch(() => {});
-  }, [refreshProfile]);
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile().catch(() => {});
+    }, [])
+  );
 
   useEffect(() => {
     setPickupInput(pickup?.address || '');
@@ -98,45 +101,72 @@ export default function ServiceScreen() {
   }, [destination?.address]);
 
   /**
-   * Meminta izin akses lokasi GPS & mengarahkan titik jemput ke lokasi saat ini
+   * Mendapatkan koordinat GPS terkini secara cross-platform (Web Geolocation & Native expo-location)
    */
-  const handleLocateMe = useCallback(async () => {
-    setLocating(true);
+  const getLiveCoords = async (): Promise<{ lat: number; lon: number } | null> => {
+    // 1. Browser Geolocation (Web)
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 10000,
+            maximumAge: 60000,
+            enableHighAccuracy: true,
+          });
+        });
+        if (pos?.coords?.latitude && pos?.coords?.longitude) {
+          return { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        }
+      } catch {
+        // Fallback silently if browser geolocation is unavailable or permission denied
+      }
+    }
+
+    // 2. expo-location (Android / iOS)
     try {
       let { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
         const req = await Location.requestForegroundPermissionsAsync();
         status = req.status;
       }
+      if (status === 'granted') {
+        let location = await Location.getLastKnownPositionAsync();
+        if (!location) {
+          location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        }
+        if (location?.coords) {
+          return { lat: location.coords.latitude, lon: location.coords.longitude };
+        }
+      }
+    } catch {
+      // Fallback silently
+    }
+    return null;
+  };
 
-      if (status !== 'granted') {
-        Alert.alert(
-          'Izin Lokasi Diperlukan',
-          'Harap izinkan akses lokasi di pengaturan perangkat agar OpenJek dapat menentukan titik jemput Anda.'
-        );
+  /**
+   * Meminta izin akses lokasi GPS & mengarahkan titik jemput ke lokasi saat ini
+   */
+  const handleLocateMe = useCallback(async () => {
+    setLocating(true);
+    try {
+      const coords = await getLiveCoords();
+      if (coords) {
+        const addressName = await reversePhotonGeocode(coords.lat, coords.lon);
+        setPickup({
+          id: 'gps-current',
+          label: 'Lokasi Saya (Saat Ini)',
+          address: addressName,
+          lat: coords.lat,
+          lon: coords.lon,
+        });
+        setPickupInput(addressName);
+        setPinLocked(true);
         return;
       }
 
-      let location = await Location.getLastKnownPositionAsync();
-      if (!location) {
-        location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Low,
-        });
-      }
-
-      const { latitude, longitude } = location.coords;
-      const addressName = await reversePhotonGeocode(latitude, longitude);
-
-      setPickup({
-        id: 'gps-current',
-        label: 'Lokasi Saya (GPS)',
-        address: addressName,
-        lat: latitude,
-        lon: longitude,
-      });
-      setPickupInput(addressName);
-      setPinLocked(true);
-    } catch {
       const fallbackLat = -0.664159;
       const fallbackLon = 100.939844;
       const addressName = await reversePhotonGeocode(fallbackLat, fallbackLon);
@@ -149,10 +179,19 @@ export default function ServiceScreen() {
       });
       setPickupInput(addressName);
       setPinLocked(true);
+    } catch {
+      // Ignored
     } finally {
       setLocating(false);
     }
   }, [setPickup]);
+
+  // Otomatis sinkronkan titik jemput ke lokasi pengguna saat ini ketika halaman pertama dibuka
+  useEffect(() => {
+    if (!pickup || pickup.id === 'current' || pickup.id === 'gps-fallback') {
+      handleLocateMe();
+    }
+  }, [handleLocateMe]);
 
   // Mengunci lokasi titik jemput atau tujuan saat tombol "Pilih lokasi ini" pada pin ditekan
   const handleConfirmMapLocation = useCallback(
@@ -206,6 +245,11 @@ export default function ServiceScreen() {
 
   const choose = useCallback(
     (place: Place) => {
+      if (place.id === 'action-current-loc') {
+        handleLocateMe();
+        setActiveField('destination');
+        return;
+      }
       if (activeField === 'pickup') {
         setPickup(place);
         setPickupInput(place.address || place.label);
@@ -217,7 +261,7 @@ export default function ServiceScreen() {
         setPinLocked(true);
       }
     },
-    [activeField, setPickup, setDestination]
+    [activeField, setPickup, setDestination, handleLocateMe]
   );
 
   const handleQuickAction = useCallback(
@@ -304,13 +348,35 @@ export default function ServiceScreen() {
   /** Suggestions gabungan: rekomendasi Photon OSM live + tempat tersimpan lokal */
   const suggestions = useMemo(() => {
     const term = currentQuery.trim().toLowerCase();
-    if (!term) return SavedPlaces;
-    if (photonSuggestions.length > 0) return photonSuggestions;
-    return SavedPlaces.filter(
+    const useCurrentLocItem: Place = {
+      id: 'action-current-loc',
+      label: 'Gunakan Lokasi Saat Ini',
+      address: pickupInput || 'Arahkan titik jemput ke posisi GPS Anda saat ini',
+      lat: pickup?.lat,
+      lon: pickup?.lon,
+    };
+
+    if (!term) {
+      if (activeField === 'pickup') {
+        return [useCurrentLocItem, ...SavedPlaces];
+      }
+      return SavedPlaces;
+    }
+    if (photonSuggestions.length > 0) {
+      if (activeField === 'pickup') {
+        return [useCurrentLocItem, ...photonSuggestions];
+      }
+      return photonSuggestions;
+    }
+    const filtered = SavedPlaces.filter(
       (place) =>
         place.label.toLowerCase().includes(term) || place.address.toLowerCase().includes(term)
     );
-  }, [currentQuery, photonSuggestions]);
+    if (activeField === 'pickup') {
+      return [useCurrentLocItem, ...filtered];
+    }
+    return filtered;
+  }, [currentQuery, photonSuggestions, activeField, pickupInput, pickup?.lat, pickup?.lon]);
 
   const picking = !destination || activeField === 'pickup';
 
@@ -360,25 +426,9 @@ export default function ServiceScreen() {
           contentContainerStyle={styles.sheetContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Selector Tab Semua Layanan: Ride, Car, Food, Send, Mart, Med */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.serviceTabRow}>
-            {ServiceOptions.map((opt) => {
-              const active = service === opt.id;
-              return (
-                <View key={opt.id} style={styles.serviceTabWrap}>
-                  <Button
-                    variant={active ? 'primary' : 'surface'}
-                    size="sm"
-                    label={opt.label}
-                    onPress={() => setService(opt.id)}
-                  />
-                </View>
-              );
-            })}
-          </ScrollView>
+          <DSText variant="headlineMd" style={styles.sheetTitle}>
+            Pilih Lokasi
+          </DSText>
 
           <LocationInputs
             pickup={pickupInput}
@@ -546,6 +596,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenMargin,
     paddingBottom: Sizes.sheetScrollPad,
   },
+  sheetTitle: {
+    marginBottom: Spacing.sm,
+  },
   scroll: {
     flex: 1,
   },
@@ -570,14 +623,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Neutral.gray100,
     padding: Spacing.md,
-  },
-  serviceTabRow: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    paddingBottom: Spacing.xs,
-  },
-  serviceTabWrap: {
-    borderRadius: Radius.full,
   },
   cta: {
     width: '100%',

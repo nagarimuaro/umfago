@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CallAvatar } from '@/components/call/call-avatar';
@@ -11,6 +11,7 @@ import { DSText } from '@/components/ds/ds-text';
 import { IconButton } from '@/components/ds/icon-button';
 import { CallCopy } from '@/constants/call';
 import { threadById } from '@/constants/chat';
+import { SampleDriver } from '@/constants/booking';
 import { Opacity, Overlay, Palette, Sizes, Spacing } from '@/constants/design-system';
 
 /** `blur-xl` on the backdrop portrait. Tailwind's own value is a 24px Gaussian blur. */
@@ -25,48 +26,82 @@ const StatusBottomOffset = 64;
 const FooterBottomInset = 48;
 
 /**
- * Voice call in progress, keyed on the chat thread it was placed from.
- *
- * There is no telephony backend, so the controls are local state and the status line is
- * the design's fixed "Calling..." rather than a live timer. Both ending the call and
- * minimising it pop back to the conversation, which is where the call started.
+ * Panggilan suara dalam aplikasi dengan timer realtime dan fallback dial telepon seluler.
  */
 export default function CallScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const thread = useMemo(() => threadById(id), [id]);
+  const { id, name: paramName, photo: paramPhoto, phone: paramPhone, vehicle: paramVehicle, plate: paramPlate } =
+    useLocalSearchParams<{
+      id: string;
+      name?: string;
+      photo?: string;
+      phone?: string;
+      vehicle?: string;
+      plate?: string;
+    }>();
+
+  const thread = useMemo(() => (id ? threadById(id) : null), [id]);
 
   const [isMuted, setMuted] = useState(false);
-  /** The design draws the speaker control in its active state. */
   const [isSpeakerOn, setSpeakerOn] = useState(true);
+  const [callState, setCallState] = useState<'calling' | 'connected'>('calling');
+  const [seconds, setSeconds] = useState(0);
 
-  if (!thread) {
-    return (
-      <View style={styles.screen}>
-        <SafeAreaView edges={['top']} style={styles.missing}>
-          <DSText variant="bodyMd" color={Palette.onSecondary}>
-            {CallCopy.missing}
-          </DSText>
-        </SafeAreaView>
-      </View>
-    );
-  }
+  // Driver didapat dari thread atau dari order params
+  const driver = useMemo(() => {
+    if (thread?.driver) return thread.driver;
+    return {
+      id: String(id || '1'),
+      name: paramName || 'Driver UmfaGo',
+      rating: 4.9,
+      vehicle: paramVehicle || 'Toyota Avanza',
+      plate: paramPlate || 'BA 5678 AB',
+      photo: paramPhoto?.startsWith('http') ? paramPhoto : SampleDriver.photo,
+      etaMinutes: 3,
+    };
+  }, [thread, id, paramName, paramPhoto, paramVehicle, paramPlate]);
 
-  const driver = thread.driver;
-  const name = driver?.name ?? thread.title;
+  const name = driver.name;
+  const phoneNumber = paramPhone || '081234567891';
+
+  // Simulasi koneksi panggilan suara (terhubung dalam 2.5 detik)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCallState('connected');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Timer panggilan aktif saat terhubung
+  useEffect(() => {
+    if (callState !== 'connected') return;
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [callState]);
+
+  const timeDisplay = useMemo(() => {
+    if (callState === 'calling') return 'MEMANGGIL...';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }, [callState, seconds]);
+
+  const handleCellularCall = () => {
+    Linking.openURL(`tel:${phoneNumber}`).catch(() => {});
+  };
 
   return (
     <View style={styles.screen}>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {driver ? (
-          <Image
-            source={{ uri: driver.photo }}
-            style={styles.backdrop}
-            contentFit="cover"
-            blurRadius={BackdropBlur}
-            accessibilityIgnoresInvertColors
-          />
-        ) : null}
+        <Image
+          source={{ uri: driver.photo }}
+          style={styles.backdrop}
+          contentFit="cover"
+          blurRadius={BackdropBlur}
+          accessibilityIgnoresInvertColors
+        />
         <LinearGradient
           colors={[Overlay.secondarySoft, Palette.secondary, Palette.secondary]}
           style={StyleSheet.absoluteFill}
@@ -87,17 +122,20 @@ export default function CallScreen() {
 
         <View style={styles.body}>
           <View style={styles.identity}>
-            <CallAvatar photo={driver?.photo} name={name} />
+            <CallAvatar photo={driver.photo} name={name} />
             <DSText variant="headlineDisplay" color={Palette.onSecondary} style={styles.name}>
               {name}
             </DSText>
             <DSText variant="bodyLgMedium" color={Palette.primaryContainer}>
-              {CallCopy.role}
+              {driver.vehicle ? `${driver.vehicle} • ${driver.plate}` : 'Mitra Driver UmfaGo'}
             </DSText>
           </View>
 
-          <DSText variant="overlineLg" color={Palette.surfaceVariant} style={styles.status}>
-            {CallCopy.status}
+          <DSText
+            variant="overlineLg"
+            color={callState === 'connected' ? '#4ADE80' : Palette.surfaceVariant}
+            style={styles.status}>
+            {timeDisplay}
           </DSText>
         </View>
 
@@ -115,8 +153,13 @@ export default function CallScreen() {
               tone={isSpeakerOn ? 'active' : 'subtle'}
               onPress={() => setSpeakerOn((current) => !current)}
             />
-            {/* Video calling has no backend, so the control stays as the design draws it. */}
-            <CallControl icon="videocam-off" accessibilityLabel={CallCopy.video} disabled />
+            {/* Tombol Dial GSM Telepon Seluler Langsung */}
+            <CallControl
+              icon="call"
+              accessibilityLabel="Panggil nomor seluler"
+              tone="subtle"
+              onPress={handleCellularCall}
+            />
           </View>
 
           <CallControl

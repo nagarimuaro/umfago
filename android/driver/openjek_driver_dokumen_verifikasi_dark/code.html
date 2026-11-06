@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dokumen &amp; Verifikasi - OpenJek</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Hanken+Grotesk:wght@600;700;800&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#a8d700",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "on-secondary-container": "#b7b5b4",
+                        "tertiary": "#ffffff",
+                        "background": "#121212",
+                        "secondary": "#c8c6c5",
+                        "on-surface": "#e4e2e1",
+                        "tertiary-fixed": "#e2e2e2",
+                        "primary-fixed": "#c0f500",
+                        "on-secondary": "#313030",
+                        "primary": "#c8ff00",
+                        "primary-container": "#c8ff00",
+                        "surface-bright": "#393939",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary-fixed-variant": "#454747",
+                        "on-error": "#690005",
+                        "inverse-primary": "#4f6600",
+                        "surface": "#121212",
+                        "surface-container": "#1f2020",
+                        "on-primary-fixed": "#161f00",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "surface-container-high": "#2a2a2a",
+                        "on-primary": "#273500",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-tertiary-container": "#636565",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "secondary-container": "#474746",
+                        "surface-variant": "#353535",
+                        "tertiary-container": "#e2e2e2",
+                        "inverse-on-surface": "#303030",
+                        "surface-container-low": "#1b1c1c",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#474746",
+                        "on-surface-variant": "#9ca3af",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "on-background": "#e4e2e1",
+                        "outline": "#8e9479",
+                        "error": "#ffb4ab",
+                        "inverse-surface": "#e4e2e1",
+                        "on-primary-container": "#161f00",
+                        "surface-dim": "#131313",
+                        "outline-variant": "#434933",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed-dim": "#a8d700",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed-variant": "#3b4d00",
+                        "on-tertiary": "#2f3131"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "xs": "8px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "edge-margin": "16px",
+                        "gutter": "12px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Hanken Grotesk", "Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+    </style>
+</head>
+<body class="bg-[#121212] text-on-surface font-body min-h-screen flex flex-col pt-16 pb-[88px] antialiased">
+<!-- TopAppBar -->
+<header class="bg-[#121212]/95 backdrop-blur border-b border-white/[0.08] flex items-center justify-between px-edge-margin h-16 w-full fixed top-0 z-50">
+<button aria-label="Back" class="text-white hover:opacity-80 active:scale-95 transition-all flex items-center justify-center p-2 -ml-2 rounded-full">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<h1 class="text-lg font-headline font-semibold text-white absolute left-1/2 -translate-x-1/2">Dokumen &amp; Verifikasi</h1>
+<div class="w-10"></div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 px-edge-margin pt-md pb-xl flex flex-col gap-gutter">
+<!-- Verification Banner (Bento Style) -->
+<div class="bg-[#1e1f1f] border border-white/[0.08] rounded-xl p-md flex items-center gap-sm relative overflow-hidden">
+<!-- Decorative subtle glow -->
+<div class="absolute -right-10 -top-10 w-32 h-32 bg-[#c8ff00]/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="bg-[#c8ff00]/15 text-[#c8ff00] p-3 rounded-full flex-shrink-0 z-10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<div class="z-10">
+<h2 class="font-headline text-base font-semibold text-white">Akun Terverifikasi</h2>
+<p class="font-body text-xs text-on-surface-variant mt-1 leading-relaxed">Semua dokumen Anda valid dan aktif. Anda siap menerima orderan.</p>
+</div>
+</div>
+<div class="mt-xs">
+<h3 class="font-headline text-base font-semibold text-white mb-sm px-1">Daftar Dokumen</h3>
+<!-- Document List Grid -->
+<div class="grid grid-cols-1 gap-gutter">
+<!-- KTP -->
+<div class="bg-[#1e1f1f] border border-white/[0.08] rounded-lg p-md flex items-center justify-between group cursor-pointer hover:bg-[#252626] transition-colors">
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 bg-[#2a2a2a] flex items-center justify-center rounded-lg text-secondary border border-white/[0.04]">
+<span class="material-symbols-outlined text-secondary">badge</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-white text-sm">KTP</p>
+<p class="font-body text-xs text-on-surface-variant mt-0.5">Kartu Tanda Penduduk</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[12px] font-semibold text-[#c8ff00] bg-[#c8ff00]/15 border border-[#c8ff00]/25 px-2.5 py-0.5 rounded">Verified</span>
+<span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors text-[20px]">chevron_right</span>
+</div>
+</div>
+<!-- SIM -->
+<div class="bg-[#1e1f1f] border border-white/[0.08] rounded-lg p-md flex flex-col group cursor-pointer hover:bg-[#252626] transition-colors">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 bg-[#2a2a2a] flex items-center justify-center rounded-lg text-secondary border border-white/[0.04]">
+<span class="material-symbols-outlined text-secondary">drive_eta</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-white text-sm">SIM C</p>
+<p class="font-body text-xs text-on-surface-variant mt-0.5">Surat Izin Mengemudi</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[12px] font-semibold text-[#c8ff00] bg-[#c8ff00]/15 border border-[#c8ff00]/25 px-2.5 py-0.5 rounded">Verified</span>
+<span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors text-[20px]">chevron_right</span>
+</div>
+</div>
+<div class="mt-sm pt-sm border-t border-white/[0.08] flex items-center justify-between">
+<span class="text-xs text-on-surface-variant">Masa Berlaku</span>
+<span class="text-xs font-semibold text-white">12 Dec 2025</span>
+</div>
+</div>
+<!-- SKCK -->
+<div class="bg-[#1e1f1f] border border-white/[0.08] rounded-lg p-md flex items-center justify-between group cursor-pointer hover:bg-[#252626] transition-colors">
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 bg-[#2a2a2a] flex items-center justify-center rounded-lg text-secondary border border-white/[0.04]">
+<span class="material-symbols-outlined text-secondary">policy</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-white text-sm">SKCK</p>
+<p class="font-body text-xs text-on-surface-variant mt-0.5">Catatan Kepolisian</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[12px] font-semibold text-[#c8ff00] bg-[#c8ff00]/15 border border-[#c8ff00]/25 px-2.5 py-0.5 rounded">Verified</span>
+<span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors text-[20px]">chevron_right</span>
+</div>
+</div>
+<!-- Photo Selfie -->
+<div class="bg-[#1e1f1f] border border-white/[0.08] rounded-lg p-md flex items-center justify-between group cursor-pointer hover:bg-[#252626] transition-colors">
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 bg-[#2a2a2a] flex items-center justify-center rounded-lg text-secondary relative overflow-hidden border border-white/[0.04]">
+<!-- Stylized photo placeholder -->
+<img class="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity" data-alt="A close-up portrait of a professional driver wearing a clean uniform, well-lit with natural daylight, showing a confident and friendly expression. The background is slightly blurred indicating an outdoor urban setting, emphasizing reliability and trustworthiness." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWKXOeqEvDSW5Z3EkF8ioUcBP8oEx6pKS7iEYYF9uKppMR4ff-i_jcVowb2lXAng3DpxRKtp6pxH0pYudiWwtRrMF8rWA3KRvVWAPSuAj-jJ8dUFTOHBV7z-SyE_xsTlcWjNSQ5GcZMI9KcdyEzmYoISrfl2ndUWS_29xyQQgujOriXSGn0o51q_GdqkgGZwqPaAXciyePNp90R7OCcyJu__g-MkQ8sehCseg9mTkyHgPayYMAjzEJ"/>
+<span class="material-symbols-outlined z-10 text-white drop-shadow-md">face</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-white text-sm">Foto Diri</p>
+<p class="font-body text-xs text-on-surface-variant mt-0.5">Selfie Profil</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[12px] font-semibold text-[#c8ff00] bg-[#c8ff00]/15 border border-[#c8ff00]/25 px-2.5 py-0.5 rounded">Verified</span>
+<span class="material-symbols-outlined text-gray-500 group-hover:text-white transition-colors text-[20px]">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<!-- CTA Button -->
+<div class="mt-lg">
+<p class="font-body text-xs text-on-surface-variant text-center mb-sm px-4">Setiap pembaruan dokumen akan ditinjau dalam waktu 3-7 hari kerja.</p>
+<button class="w-full bg-[#c8ff00] text-[#121212] font-headline text-sm font-bold py-3.5 rounded-lg active:scale-95 transition-all hover:bg-[#bbf000] flex items-center justify-center gap-2 shadow-lg shadow-[#c8ff00]/10">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">update</span>
+            Perbarui Dokumen
+        </button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden bg-[#181919] border-t border-white/[0.08] fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 pb-safe">
+<!-- Beranda -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-white px-3 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">home</span>
+<span class="text-[11px] font-medium mt-0.5">Beranda</span>
+</a>
+<!-- Riwayat -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-white px-3 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">history</span>
+<span class="text-[11px] font-medium mt-0.5">Riwayat</span>
+</a>
+<!-- Saldo -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-white px-3 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+<span class="text-[11px] font-medium mt-0.5">Saldo</span>
+</a>
+<!-- Akun (ACTIVE) -->
+<a class="flex flex-col items-center justify-center bg-[#c8ff00] text-[#121212] rounded-xl px-4 py-1.5 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="text-[11px] font-bold mt-0.5">Akun</span>
+</a>
+</nav>
+</body></html>

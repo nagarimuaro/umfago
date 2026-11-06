@@ -1,10 +1,10 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapLibreOSMView } from '@/components/booking/map-libre-view';
-import { PulseMarker } from '@/components/booking/pulse-marker';
 import { Button } from '@/components/ds/button';
 import { DSText } from '@/components/ds/ds-text';
 import { Icon } from '@/components/ds/icon';
@@ -24,6 +24,7 @@ import {
 import { Wallet } from '@/constants/home-content';
 import { useBooking } from '@/hooks/use-booking';
 import { updateDriverOrderStatus } from '@/services/driver-demo';
+import { getValhallaRoute } from '@/services/valhalla';
 import type { TripStatus } from '@/types/order';
 
 const StatusCopy: Partial<Record<TripStatus, string>> = {
@@ -32,11 +33,64 @@ const StatusCopy: Partial<Record<TripStatus, string>> = {
   completed: 'Perjalanan selesai',
 };
 
+const FoodStatusCopy: Partial<Record<TripStatus, string>> = {
+  pickup: 'Driver sedang menuju restoran untuk mengambil pesanan Anda',
+  onTrip: 'Driver dalam perjalanan mengantarkan pesanan makanan ke lokasi Anda',
+  completed: 'Pesanan makanan telah sampai di tujuan. Selamat menikmati!',
+};
+
 export default function TripScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { driver, payment, status, setStatus, orderUUID, service, reset } = useBooking();
-  console.log('[trip] render', status, orderUUID, driver?.name);
+  const { pickup, destination, route, driver, payment, status, setStatus, orderUUID, service, reset } = useBooking();
+
+  const isFood = service === 'food';
+
+  // Posisi aktual dan rute driver menuju titik jemput penumpang
+  const [driverPos, setDriverPos] = useState<{ lat: number; lon: number } | null>(null);
+  const [pickupRouteCoords, setPickupRouteCoords] = useState<[number, number][] | null>(null);
+  const [eta, setEta] = useState<number>(driver?.etaMinutes ?? 3);
+
+  // Inisialisasi rute jalan raya dari posisi awal driver ke titik jemput penumpang
+  useEffect(() => {
+    if (!pickup?.lat || !pickup?.lon) return;
+
+    // Driver dimulai dari posisi riil (atau radius ~700m dari titik jemput penumpang)
+    const initialDriverLat = driver?.lat ?? (pickup.lat + 0.005);
+    const initialDriverLon = driver?.lon ?? (pickup.lon + 0.004);
+    setDriverPos({ lat: initialDriverLat, lon: initialDriverLon });
+
+    const costing = service === 'car' ? 'auto' : 'motorcycle';
+    getValhallaRoute([initialDriverLat, initialDriverLon], [pickup.lat, pickup.lon], costing)
+      .then((res) => {
+        if (res.coordinates && res.coordinates.length > 0) {
+          setPickupRouteCoords(res.coordinates);
+          setEta(Math.max(1, Math.ceil(res.durationMinutes)));
+        }
+      })
+      .catch(() => {});
+  }, [pickup?.lat, pickup?.lon, service]);
+
+  // Simulasi pergerakan driver menuju titik jemput penumpang
+  useEffect(() => {
+    if (status !== 'pickup' || !pickupRouteCoords || pickupRouteCoords.length === 0) return;
+
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      stepIndex += 1;
+      if (stepIndex < pickupRouteCoords.length) {
+        const [lon, lat] = pickupRouteCoords[stepIndex];
+        setDriverPos({ lat, lon });
+        const remainingSteps = pickupRouteCoords.length - stepIndex;
+        const remainingEta = Math.max(1, Math.ceil((remainingSteps / pickupRouteCoords.length) * eta));
+        setEta(remainingEta);
+      } else {
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [status, pickupRouteCoords, eta]);
 
   const finish = () => {
     reset();
@@ -59,32 +113,11 @@ export default function TripScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapLibreOSMView />
-
-      {/* Pickup pulse, roughly centre-map as drawn. */}
-      <View style={styles.pickupMarker} pointerEvents="none">
-        <PulseMarker />
-      </View>
-
-      {/* Nearby driver — motorcycle chip with ETA, as on the map. The marker stands for
-          the assigned driver, so it only appears once there is one to point at. */}
-      {driver ? (
-        <View style={styles.driverOnMap} pointerEvents="none">
-          <View style={styles.driverMarker}>
-            <Icon name="motorcycle" size={Sizes.iconBase} color={Palette.onPrimary} />
-          </View>
-          <View style={styles.etaChip}>
-            <DSText variant="labelXs" color={Palette.onSurface}>
-              {`${driver.etaMinutes} min`}
-            </DSText>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Second nearby driver, the dark dot marker. */}
-      <View style={styles.secondaryMarker} pointerEvents="none">
-        <View style={styles.secondaryCore} />
-      </View>
+      <MapLibreOSMView
+        driverCoords={status === 'completed' ? null : driverPos}
+        driverVehicleType={service === 'car' ? 'car' : 'motorcycle'}
+        customRouteCoords={status === 'pickup' ? pickupRouteCoords : (route?.coordinates ?? null)}
+      />
 
       <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
         <IconButton
@@ -101,14 +134,18 @@ export default function TripScreen() {
         <View style={[styles.sheetContent, { paddingBottom: Spacing.md + insets.bottom }]}>
           <View style={styles.statusRow}>
             <View style={styles.statusHeader}>
-              <Icon name="near-me" size={Sizes.iconMd} color={Palette.primary} />
+              <Icon name={isFood ? 'restaurant' : 'near-me'} size={Sizes.iconMd} color={Palette.primary} />
               <DSText variant="labelMd" color={Palette.onSurface}>
-                {BookingCopy.trackingHeader}
+                {status === 'pickup'
+                  ? (isFood ? 'Driver Menuju Restoran' : 'Penjemputan Penumpang')
+                  : status === 'onTrip'
+                  ? (isFood ? 'Pengantaran Makanan' : BookingCopy.trackingHeader)
+                  : (isFood ? 'Pesanan Telah Sampai' : 'Perjalanan Selesai')}
               </DSText>
             </View>
             {driver ? (
               <Pill
-                label={`${BookingCopy.trackingEtaPrefix} ${driver.etaMinutes} ${BookingCopy.trackingEtaSuffix}`}
+                label={`${BookingCopy.trackingEtaPrefix} ${eta} ${BookingCopy.trackingEtaSuffix}`}
                 tone="success"
                 compact
               />
@@ -134,7 +171,7 @@ export default function TripScreen() {
                       />
                       <View style={styles.photoBadge}>
                         <Icon
-                          name="motorcycle"
+                          name={isFood ? 'restaurant' : (service === 'car' ? 'directions-car' : 'motorcycle')}
                           size={Sizes.iconSm}
                           color={Palette.onPrimaryFixedVariant}
                         />
@@ -170,7 +207,7 @@ export default function TripScreen() {
                       background={Palette.surfaceContainerHigh}
                       color={Palette.primary}
                       size={Sizes.iconMd}
-                      disabled
+                      onPress={() => router.push(`/chat/${orderUUID || 'demo-order'}`)}
                     />
                     <IconButton
                       icon="call"
@@ -179,8 +216,41 @@ export default function TripScreen() {
                       background={Palette.primary}
                       color={Palette.onPrimaryFixedVariant}
                       size={Sizes.iconMd}
-                      disabled
+                      onPress={() => router.push(`/call/${orderUUID || 'demo-order'}`)}
                     />
+                  </View>
+                </View>
+
+                {/* Info rute penjemputan resto & tujuan pengantaran */}
+                <View style={styles.routeSummaryCard}>
+                  <View style={styles.routeRow}>
+                    <View style={[styles.routeDot, { backgroundColor: Palette.primary }]}>
+                      <Icon name={isFood ? 'storefront' : 'radio-button-checked'} size={12} color={Palette.onPrimary} />
+                    </View>
+                    <View style={styles.routeTextWrap}>
+                      <DSText variant="labelSm" color={Palette.secondary}>
+                        {isFood ? 'Restoran / Pengambilan' : 'Titik Jemput'}
+                      </DSText>
+                      <DSText variant="bodySm" color={Neutral.gray900} numberOfLines={1}>
+                        {pickup?.label || 'Restoran'}
+                      </DSText>
+                    </View>
+                  </View>
+
+                  <View style={styles.routeConnector} />
+
+                  <View style={styles.routeRow}>
+                    <View style={[styles.routeDot, { backgroundColor: Palette.error }]}>
+                      <Icon name="location-on" size={12} color={Palette.onPrimary} />
+                    </View>
+                    <View style={styles.routeTextWrap}>
+                      <DSText variant="labelSm" color={Palette.secondary}>
+                        {isFood ? 'Alamat Pengantaran' : 'Tujuan'}
+                      </DSText>
+                      <DSText variant="bodySm" color={Neutral.gray900} numberOfLines={1}>
+                        {destination?.label || destination?.address || 'Tujuan'}
+                      </DSText>
+                    </View>
                   </View>
                 </View>
 
@@ -200,27 +270,25 @@ export default function TripScreen() {
                       </DSText>
                     </View>
                   </View>
-                  {/*
-                    The design draws a "Change" link here, but payment is locked once a
-                    driver is assigned and there is no mid-trip payment flow to open, so
-                    the row stays informational rather than offering a dead control.
-                  */}
                 </View>
               </>
             ) : null}
 
-            {/* Status flow controls — the design covers pickup only, so the mock keeps
-                these buttons to advance the trip. */}
+            {/* Status flow controls */}
             <DSText variant="labelSm" color={Palette.secondary} style={styles.statusNote}>
-              {StatusCopy[status] ?? 'Menunggu status'}
+              {(isFood ? FoodStatusCopy[status] : StatusCopy[status]) ?? 'Menunggu status'}
             </DSText>
 
             {status === 'pickup' ? (
-              <Button label="Saya sudah naik" variant="dark" onPress={handleStartTrip} />
+              <Button
+                label={isFood ? 'Driver Telah Mengambil Pesanan' : 'Saya sudah naik'}
+                variant="dark"
+                onPress={handleStartTrip}
+              />
             ) : null}
             {status === 'onTrip' ? (
               <Button
-                label="Selesaikan perjalanan"
+                label={isFood ? 'Pesanan Makanan Diterima' : 'Selesaikan perjalanan'}
                 variant="dark"
                 onPress={handleCompleteTrip}
               />
@@ -228,7 +296,7 @@ export default function TripScreen() {
             {status === 'completed' ? (
               <>
                 <Button
-                  label="Beri Nilai Driver"
+                  label={isFood ? 'Beri Nilai Driver & Toko' : 'Beri Nilai Driver'}
                   variant="dark"
                   onPress={() => router.replace('/booking/order-done')}
                 />
@@ -419,6 +487,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  routeSummaryCard: {
+    backgroundColor: Palette.surfaceContainerLow,
+    borderRadius: Radius.base,
+    padding: Spacing.sm,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  routeDot: {
+    width: 20,
+    height: 20,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  routeConnector: {
+    width: 2,
+    height: 10,
+    backgroundColor: Palette.outlineVariant,
+    marginLeft: 9,
+    marginVertical: 2,
+  },
+  routeTextWrap: {
+    flex: 1,
   },
   statusNote: {
     textAlign: 'center',

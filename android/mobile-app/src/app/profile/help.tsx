@@ -3,6 +3,7 @@ import { useState } from 'react';
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -18,6 +19,9 @@ import { Icon } from '@/components/ds/icon';
 import { IconButton } from '@/components/ds/icon-button';
 import { Brand, Palette, Radius, Spacing } from '@/constants/design-system';
 import { useAuth } from '@/hooks/use-auth';
+import { ENV } from '@/constants/env';
+
+const BACKEND_URL = ENV.API_URL;
 
 interface FAQItem {
   id: string;
@@ -34,7 +38,7 @@ const FAQ_LIST: FAQItem[] = [
   {
     id: '2',
     q: 'Bagaimana jika saldo terpotong saat order dibatalkan?',
-    a: 'Sistem OpenJek secara otomatis mengembalikan dana penuh ke dompet Anda seketika setelah order berstatus dibatalkan.',
+    a: 'Sistem UmfaGo secara otomatis mengembalikan dana penuh ke dompet Anda seketika setelah order berstatus dibatalkan.',
   },
   {
     id: '3',
@@ -65,14 +69,29 @@ export default function HelpSupportScreen() {
 
     setLoading(true);
     try {
-      // Backend enterprise route: tiket tersimpan langsung ke PostgreSQL
+      if (token) {
+        await fetch(`${BACKEND_URL}/api/support/tickets`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category,
+            subject: subject.trim(),
+            description: desc.trim(),
+          }),
+        });
+      }
       Alert.alert(
         'Tiket Diterima',
-        'Laporan Anda berhasil dikirim ke tim Customer Service OpenJek. Kami akan menghubungi Anda segera.'
+        'Laporan Anda berhasil dikirim ke tim Customer Service UmfaGo. Kami akan menindaklanjuti keluhan Anda.',
       );
       setTicketModal(false);
       setSubject('');
       setDesc('');
+    } catch {
+      Alert.alert('Gagal Mengirim', 'Koneksi ke server terganggu. Silakan coba kembali.');
     } finally {
       setLoading(false);
     }
@@ -98,7 +117,7 @@ export default function HelpSupportScreen() {
             <View style={styles.contactText}>
               <DSText variant="headlineBase">Punya Kendala Perjalanan?</DSText>
               <DSText variant="bodySm" color={Palette.secondary}>
-                Tim Customer Support OpenJek siap membantu kendala akun, transaksi, atau keamanan.
+                Tim Customer Support UmfaGo siap membantu kendala akun, transaksi, atau keamanan.
               </DSText>
             </View>
           </View>

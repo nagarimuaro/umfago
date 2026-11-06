@@ -36,7 +36,7 @@ export const BookingCopy = {
   trackingEtaSuffix: 'mins',
   paymentMethodLabel: 'Payment Method',
   arrivedTitle: 'You have arrived at your destination',
-  arrivedSubtitle: 'Hope you enjoyed the ride with OpenJek.',
+  arrivedSubtitle: 'Hope you enjoyed the ride with UmfaGo.',
   totalFareLabel: 'Total Fare',
   distanceLabel: 'Distance',
   durationLabel: 'Duration',
