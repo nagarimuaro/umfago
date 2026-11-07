@@ -164,14 +164,6 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
           </TouchableOpacity>
         )}
       </View>
-
-      {/* GPS Status HUD Pill */}
-      <View style={styles.locationHud}>
-        <Ionicons name="navigate-circle" size={14} color={isOnline ? colors.primary : colors.textSecondary} />
-        <Text style={styles.hudText}>
-          {lat.toFixed(4)}, {lon.toFixed(4)} • Menteng JKT
-        </Text>
-      </View>
     </View>
   );
 };
@@ -224,27 +216,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
-  },
-  locationHud: {
-    position: 'absolute',
-    left: spacing.lg,
-    bottom: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(25, 26, 26, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    zIndex: 20,
-  },
-  hudText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.white,
-    fontFamily: 'monospace',
   },
 });
 
