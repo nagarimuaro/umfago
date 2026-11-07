@@ -1,15 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { colors, rounded, spacing } from '../../constants/theme';
 import { useDriver } from '../../hooks/use-driver';
 
 export const OnlineStatusToggle: React.FC = () => {
   const { isOnline, toggleOnline, currentOrder, currentLocation } = useDriver();
+  const [address, setAddress] = useState<string>('Menteng, Jakarta Pusat');
 
-  const lat = currentLocation?.latitude ?? -6.1952;
-  const lon = currentLocation?.longitude ?? 106.8231;
-  const locationText = `${lat.toFixed(4)}, ${lon.toFixed(4)} • Menteng JKT`;
+  useEffect(() => {
+    let isMounted = true;
+    if (!currentLocation) return;
+
+    (async () => {
+      try {
+        const results = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+        });
+
+        if (results && results.length > 0 && isMounted) {
+          const item = results[0];
+          const street = item.street || item.name;
+          const area = item.district || item.subregion || item.city;
+          const parts = [street, area].filter(Boolean);
+          if (parts.length > 0) {
+            setAddress(parts.join(', '));
+          } else if (item.city) {
+            setAddress(item.city);
+          }
+        }
+      } catch {
+        // Fallback address for mock / web without reverse geocode permissions
+        if (isMounted) {
+          setAddress('Menteng, Jakarta Pusat');
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentLocation?.latitude, currentLocation?.longitude]);
 
   const getStatusContent = () => {
     if (currentOrder) {
@@ -23,7 +56,7 @@ export const OnlineStatusToggle: React.FC = () => {
     if (isOnline) {
       return (
         <Text style={styles.locationText} numberOfLines={1}>
-          {locationText}
+          {address}
         </Text>
       );
     }
@@ -37,7 +70,7 @@ export const OnlineStatusToggle: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Left Status Indicator & Location Coordinates */}
+      {/* Left Status Indicator & Location Address */}
       <View style={styles.statusGroup}>
         <View style={styles.dotContainer}>
           {isOnline && <View style={styles.pingRing} />}
@@ -138,10 +171,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.white,
-    fontFamily: 'monospace',
     letterSpacing: -0.2,
   },
   statusText: {
