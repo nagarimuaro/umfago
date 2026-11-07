@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { DriverHeader } from '../../components/home/DriverHeader';
 import { RadarMapView } from '../../components/home/RadarMapView';
 import { OnlineStatusToggle } from '../../components/home/OnlineStatusToggle';
-import { SurgeAlertCard } from '../../components/home/SurgeAlertCard';
 import { IncomingOrderModal } from '../../components/order/IncomingOrderModal';
 import { ActiveOrderHUD } from '../../components/order/ActiveOrderHUD';
 import { useDriver } from '../../hooks/use-driver';
@@ -71,13 +70,6 @@ export default function DriverHomeScreen() {
             <View pointerEvents="auto">
               <OnlineStatusToggle />
             </View>
-
-            {/* Surge Hotspot Alert Card */}
-            {selectedSurge && (
-              <View pointerEvents="auto">
-                <SurgeAlertCard surge={selectedSurge} onPressNavigate={handleSelectSurge} />
-              </View>
-            )}
           </View>
         )}
 
