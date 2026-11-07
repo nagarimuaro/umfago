@@ -33,6 +33,8 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
         } else if (data?.type === 'SURGE_SELECT' && onSelectSurge) {
           const found = surgeAreas.find((s) => s.id === data.id);
           if (found) onSelectSurge(found);
+        } else if (data?.type === 'LOG_ERROR') {
+          console.warn('[DriverMap Engine Error]', data.message);
         }
       } catch {
         // ignore
@@ -122,7 +124,7 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     <View style={styles.container}>
       {/* MapLibre GL OSM Navigation View for Web */}
       <iframe
-        key="driver-radar-map-v3"
+        key="driver-radar-map-v4"
         ref={iframeRef}
         srcDoc={mapHtml}
         style={{

@@ -1,8 +1,9 @@
 import { DRIVER_ICON_DATA_URI } from '../../constants/driver-asset';
 
 /**
- * Shared HTML Generator for MapLibre GL JS OpenStreetMap view.
- * Aligned with mobile-app's MapLibreOSMView and tailored for Driver Cockpit needs.
+ * Shared HTML Generator for OpenStreetMap navigation view.
+ * Features dual-engine support: MapLibre GL JS with 3D cockpit perspective,
+ * with automatic, seamless fallback to Leaflet DOM renderer if WebGL is unavailable.
  */
 export function getDriverMapHtml(initialLat: number, initialLon: number): string {
   return `<!DOCTYPE html>
@@ -10,18 +11,26 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- MapLibre GL CSS -->
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <!-- Leaflet CSS (WebGL Fallback) -->
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+
+  <!-- Scripts -->
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
+    html, body, #map { width: 100%; height: 100%; overflow: hidden; background: #121517; }
 
-    /* Optional Driver Night Mode Filter for OSM Raster Tiles */
+    /* Dark Mode Filter for OpenStreetMap Raster Tiles */
     body.night-mode #map { background: #121517; }
-    body.night-mode .maplibregl-canvas-container canvas {
+    body.night-mode .maplibregl-canvas-container canvas,
+    body.night-mode .leaflet-tile-pane {
       filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
     }
-    
+
     /* Driver Vehicle Marker */
     .driver-marker {
       width: 52px;
@@ -73,7 +82,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       border-bottom: 8px solid #C8FF00;
       filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
     }
-    
+
     /* Surge Hotspot Area Markers */
     .surge-marker {
       display: flex;
@@ -138,6 +147,9 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     .order-pin-pickup { background: #10B981; border: 2px solid #ffffff; }
     .order-pin-dest { background: #EF4444; border: 2px solid #ffffff; }
 
+    /* Leaflet overrides */
+    .leaflet-div-icon { background: transparent !important; border: none !important; }
+    .leaflet-control-attribution, .leaflet-control-zoom { display: none !important; }
     .maplibregl-canvas { outline: none; }
   </style>
 </head>
@@ -145,7 +157,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 <div id="map"></div>
 <script>
   function sendApp(msg) {
-    const data = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    var data = typeof msg === 'string' ? msg : JSON.stringify(msg);
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
       window.ReactNativeWebView.postMessage(data);
     }
@@ -154,157 +166,331 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
   }
 
-  // MapLibre GL with OpenStreetMap raster tiles (identical to mobile-app, no API key required)
-  const map = new maplibregl.Map({
-    container: 'map',
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap',
-          tiles: [
-            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
-          ]
-        }
+  window.onerror = function(msg, url, line) {
+    sendApp({ type: 'LOG_ERROR', message: msg + ' at ' + line });
+  };
+
+  // Helper check WebGL support
+  function checkWebGL() {
+    try {
+      var canvas = document.createElement('canvas');
+      return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch(e) {
+      return false;
+    }
+  }
+
+  var DRIVER_IMG = ${JSON.stringify(DRIVER_ICON_DATA_URI)};
+  var currentLat = ${initialLat};
+  var currentLon = ${initialLon};
+  var engine = 'leaflet';
+  var maplibreMap = null;
+  var leafletMap = null;
+
+  // Markers & Elements
+  var driverMarker = null;
+  var pickupMarker = null;
+  var destMarker = null;
+  var surgeMarkers = [];
+  var leafletRouteLine = null;
+  var leafletGlowLine = null;
+
+  function buildDriverHtml() {
+    return '<div class="driver-pulse"></div><div class="driver-pin"><div class="driver-arrow"></div><img src="/images/driver.png" onerror="this.onerror=null;this.src=\\'' + DRIVER_IMG + '\\';" class="driver-img" alt="Driver" /></div>';
+  }
+
+  // Attempt MapLibre GL initialization if WebGL supported, else fallback to Leaflet
+  var webglOk = checkWebGL();
+  if (webglOk && typeof maplibregl !== 'undefined') {
+    try {
+      initMapLibre();
+      engine = 'maplibre';
+    } catch(err) {
+      console.warn('MapLibre WebGL failed, falling back to Leaflet:', err);
+      initLeaflet();
+      engine = 'leaflet';
+    }
+  } else {
+    initLeaflet();
+    engine = 'leaflet';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 1. MapLibre GL Engine
+  // ─────────────────────────────────────────────────────────────
+  function initMapLibre() {
+    maplibreMap = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap',
+            tiles: [
+              'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ]
+          }
+        },
+        layers: [
+          { id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }
+        ]
       },
-      layers: [
-        { id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }
-      ]
-    },
-    center: [${initialLon}, ${initialLat}],
-    zoom: 16,
-    pitch: 0,
-    attributionControl: false
-  });
-
-  // Driver Marker Element with custom motorcycle vehicle icon
-  const driverEl = document.createElement('div');
-  driverEl.className = 'driver-marker';
-  driverEl.innerHTML = '<div class="driver-pulse"></div><div class="driver-pin"><div class="driver-arrow"></div><img src="' + ${JSON.stringify(DRIVER_ICON_DATA_URI)} + '" class="driver-img" alt="Driver" /></div>';
-  const driverMarker = new maplibregl.Marker({ element: driverEl, rotationAlignment: 'map' })
-    .setLngLat([${initialLon}, ${initialLat}])
-    .addTo(map);
-
-  // Markers A & B for Order
-  const pickupEl = document.createElement('div');
-  pickupEl.className = 'order-pin order-pin-pickup';
-  pickupEl.innerText = '📍 Jemput';
-  const pickupMarker = new maplibregl.Marker({ element: pickupEl });
-
-  const destEl = document.createElement('div');
-  destEl.className = 'order-pin order-pin-dest';
-  destEl.innerText = '🏁 Tujuan';
-  const destMarker = new maplibregl.Marker({ element: destEl });
-
-  let surgeMarkers = [];
-  const emptyGeoJSON = { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } };
-
-  map.on('load', () => {
-    map.addSource('route', { type: 'geojson', data: emptyGeoJSON });
-    map.addLayer({
-      id: 'route-glow',
-      type: 'line',
-      source: 'route',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#C8FF00', 'line-width': 10, 'line-opacity': 0.35 }
-    });
-    map.addLayer({
-      id: 'route-main',
-      type: 'line',
-      source: 'route',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#C8FF00', 'line-width': 5, 'line-opacity': 0.95 }
+      center: [currentLon, currentLat],
+      zoom: 16,
+      pitch: 0,
+      attributionControl: false
     });
 
-    sendApp({ type: 'ready' });
-  });
+    var driverEl = document.createElement('div');
+    driverEl.className = 'driver-marker';
+    driverEl.innerHTML = buildDriverHtml();
+    driverMarker = new maplibregl.Marker({ element: driverEl, rotationAlignment: 'map' })
+      .setLngLat([currentLon, currentLat])
+      .addTo(maplibreMap);
 
+    var pickupEl = document.createElement('div');
+    pickupEl.className = 'order-pin order-pin-pickup';
+    pickupEl.innerText = '📍 Jemput';
+    pickupMarker = new maplibregl.Marker({ element: pickupEl });
+
+    var destEl = document.createElement('div');
+    destEl.className = 'order-pin order-pin-dest';
+    destEl.innerText = '🏁 Tujuan';
+    destMarker = new maplibregl.Marker({ element: destEl });
+
+    maplibreMap.on('load', function() {
+      maplibreMap.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
+      maplibreMap.addLayer({
+        id: 'route-glow',
+        type: 'line',
+        source: 'route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#C8FF00', 'line-width': 10, 'line-opacity': 0.35 }
+      });
+      maplibreMap.addLayer({
+        id: 'route-main',
+        type: 'line',
+        source: 'route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#C8FF00', 'line-width': 5, 'line-opacity': 0.95 }
+      });
+
+      sendApp({ type: 'ready', engine: 'maplibre' });
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2. Leaflet DOM Engine (WebGL Fallback - 100% Reliable)
+  // ─────────────────────────────────────────────────────────────
+  function initLeaflet() {
+    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      subdomains: ['a', 'b', 'c']
+    }).addTo(leafletMap);
+
+    var driverIcon = L.divIcon({
+      className: 'driver-marker',
+      html: buildDriverHtml(),
+      iconSize: [52, 52],
+      iconAnchor: [26, 26]
+    });
+    driverMarker = L.marker([currentLat, currentLon], { icon: driverIcon }).addTo(leafletMap);
+
+    var pickupIcon = L.divIcon({
+      className: 'leaflet-order-pickup',
+      html: '<div class="order-pin order-pin-pickup">📍 Jemput</div>',
+      iconSize: [80, 30],
+      iconAnchor: [40, 15]
+    });
+    pickupMarker = L.marker([currentLat, currentLon], { icon: pickupIcon });
+
+    var destIcon = L.divIcon({
+      className: 'leaflet-order-dest',
+      html: '<div class="order-pin order-pin-dest">🏁 Tujuan</div>',
+      iconSize: [80, 30],
+      iconAnchor: [40, 15]
+    });
+    destMarker = L.marker([currentLat, currentLon], { icon: destIcon });
+
+    leafletGlowLine = L.polyline([], { color: '#C8FF00', weight: 10, opacity: 0.35 }).addTo(leafletMap);
+    leafletRouteLine = L.polyline([], { color: '#C8FF00', weight: 5, opacity: 0.95 }).addTo(leafletMap);
+
+    setTimeout(function() {
+      sendApp({ type: 'ready', engine: 'leaflet' });
+    }, 100);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Unified State & Action Handlers
+  // ─────────────────────────────────────────────────────────────
   window.updateState = function(state) {
     if (!state) return;
-    
-    // Update Driver Position & Orientation
+
+    // 1. Update Driver Position & Rotation
     if (state.driver) {
-      driverMarker.setLngLat([state.driver.lon, state.driver.lat]);
-      const pulse = driverEl.querySelector('.driver-pulse');
-      if (pulse) pulse.style.display = state.isOnline ? 'block' : 'none';
-      if (typeof state.driver.heading === 'number') {
-        const pin = driverEl.querySelector('.driver-pin');
-        if (pin) pin.style.transform = 'rotate(' + state.driver.heading + 'deg)';
+      currentLat = state.driver.lat;
+      currentLon = state.driver.lon;
+
+      if (engine === 'maplibre' && maplibreMap && driverMarker) {
+        driverMarker.setLngLat([state.driver.lon, state.driver.lat]);
+        var el = driverMarker.getElement();
+        var pulse = el ? el.querySelector('.driver-pulse') : null;
+        if (pulse) pulse.style.display = state.isOnline ? 'block' : 'none';
+        if (typeof state.driver.heading === 'number') {
+          var pin = el ? el.querySelector('.driver-pin') : null;
+          if (pin) pin.style.transform = 'rotate(' + state.driver.heading + 'deg)';
+        }
+      } else if (engine === 'leaflet' && leafletMap && driverMarker) {
+        driverMarker.setLatLng([state.driver.lat, state.driver.lon]);
+        var markerEl = driverMarker.getElement();
+        var lPulse = markerEl ? markerEl.querySelector('.driver-pulse') : null;
+        if (lPulse) lPulse.style.display = state.isOnline ? 'block' : 'none';
+        if (typeof state.driver.heading === 'number') {
+          var lPin = markerEl ? markerEl.querySelector('.driver-pin') : null;
+          if (lPin) lPin.style.transform = 'rotate(' + state.driver.heading + 'deg)';
+        }
       }
     }
 
-    // Update Active Order Markers & Route
+    // 2. Update Active Order Markers & Route
     if (state.order) {
-      if (state.order.pickup) {
-        pickupMarker.setLngLat([state.order.pickup.lon, state.order.pickup.lat]).addTo(map);
-      } else {
-        pickupMarker.remove();
-      }
-      if (state.order.dest) {
-        destMarker.setLngLat([state.order.dest.lon, state.order.dest.lat]).addTo(map);
-      } else {
-        destMarker.remove();
-      }
-      if (state.order.route && state.order.route.length > 1) {
-        const src = map.getSource('route');
-        if (src) src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: state.order.route } });
-        if (state.order.step === 'in_trip' || state.order.step === 'heading_to_pickup') {
-          // Cockpit 3D navigation view: ikuti posisi driver secara real-time saat jemput maupun antar
-          map.easeTo({
-            center: [state.driver.lon, state.driver.lat],
-            zoom: 16.5,
-            pitch: 45,
-            bearing: state.driver.heading || 0,
-            duration: 800
-          });
+      var isHeading = state.order.step === 'heading_to_pickup';
+      var isInTrip = state.order.step === 'in_trip';
+
+      if (engine === 'maplibre' && maplibreMap) {
+        if (state.order.pickup) {
+          pickupMarker.setLngLat([state.order.pickup.lon, state.order.pickup.lat]).addTo(maplibreMap);
         } else {
-          const b = new maplibregl.LngLatBounds();
-          state.order.route.forEach(c => b.extend(c));
-          map.fitBounds(b, { padding: 60, maxZoom: 16 });
+          pickupMarker.remove();
+        }
+        if (state.order.dest) {
+          destMarker.setLngLat([state.order.dest.lon, state.order.dest.lat]).addTo(maplibreMap);
+        } else {
+          destMarker.remove();
+        }
+        if (state.order.route && state.order.route.length > 1) {
+          var src = maplibreMap.getSource('route');
+          if (src) src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: state.order.route } });
+
+          if (isHeading || isInTrip) {
+            // Smooth Cockpit 3D navigation follow
+            maplibreMap.easeTo({
+              center: [state.driver.lon, state.driver.lat],
+              zoom: 16.5,
+              pitch: 45,
+              bearing: state.driver.heading || 0,
+              duration: 800
+            });
+          } else {
+            var b = new maplibregl.LngLatBounds();
+            state.order.route.forEach(function(c) { b.extend(c); });
+            maplibreMap.fitBounds(b, { padding: 60, maxZoom: 16 });
+          }
+        }
+      } else if (engine === 'leaflet' && leafletMap) {
+        if (state.order.pickup) {
+          pickupMarker.setLatLng([state.order.pickup.lat, state.order.pickup.lon]).addTo(leafletMap);
+        } else {
+          leafletMap.removeLayer(pickupMarker);
+        }
+        if (state.order.dest) {
+          destMarker.setLatLng([state.order.dest.lat, state.order.dest.lon]).addTo(leafletMap);
+        } else {
+          leafletMap.removeLayer(destMarker);
+        }
+        if (state.order.route && state.order.route.length > 1) {
+          var latlngs = state.order.route.map(function(c) { return [c[1], c[0]]; });
+          leafletGlowLine.setLatLngs(latlngs);
+          leafletRouteLine.setLatLngs(latlngs);
+
+          if (isHeading || isInTrip) {
+            leafletMap.panTo([state.driver.lat, state.driver.lon], { animate: true, duration: 0.8 });
+          } else {
+            leafletMap.fitBounds(latlngs, { padding: [50, 50] });
+          }
         }
       }
     } else {
-      pickupMarker.remove();
-      destMarker.remove();
-      const src = map.getSource('route');
-      if (src) src.setData(emptyGeoJSON);
+      if (engine === 'maplibre' && maplibreMap) {
+        pickupMarker.remove();
+        destMarker.remove();
+        var src2 = maplibreMap.getSource('route');
+        if (src2) src2.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+      } else if (engine === 'leaflet' && leafletMap) {
+        leafletMap.removeLayer(pickupMarker);
+        leafletMap.removeLayer(destMarker);
+        leafletGlowLine.setLatLngs([]);
+        leafletRouteLine.setLatLngs([]);
+      }
     }
 
-    // Update Surge Hotspots
+    // 3. Update Surge Hotspots
     if (state.surges && surgeMarkers.length === 0) {
       state.surges.forEach(function(s) {
-        const el = document.createElement('div');
-        el.className = 'surge-marker';
-        el.innerHTML = '<div class="surge-badge"><span>🔥 ' + s.name.split('&')[0] + '</span><div class="surge-pill">' + s.multiplier + 'x</div></div><div class="surge-ring"></div>';
-        el.addEventListener('click', function(e) {
-          e.stopPropagation();
-          sendApp({ type: 'SURGE_SELECT', id: s.id });
-        });
-        const m = new maplibregl.Marker({ element: el }).setLngLat([s.longitude, s.latitude]).addTo(map);
-        surgeMarkers.push(m);
+        var surgeHtml = '<div class="surge-badge"><span>🔥 ' + s.name.split('&')[0] + '</span><div class="surge-pill">' + s.multiplier + 'x</div></div><div class="surge-ring"></div>';
+
+        if (engine === 'maplibre' && maplibreMap) {
+          var el2 = document.createElement('div');
+          el2.className = 'surge-marker';
+          el2.innerHTML = surgeHtml;
+          el2.addEventListener('click', function(e) {
+            e.stopPropagation();
+            sendApp({ type: 'SURGE_SELECT', id: s.id });
+          });
+          var m = new maplibregl.Marker({ element: el2 }).setLngLat([s.longitude, s.latitude]).addTo(maplibreMap);
+          surgeMarkers.push(m);
+        } else if (engine === 'leaflet' && leafletMap) {
+          var sIcon = L.divIcon({
+            className: 'surge-marker',
+            html: surgeHtml,
+            iconSize: [120, 40],
+            iconAnchor: [60, 20]
+          });
+          var lm = L.marker([s.latitude, s.longitude], { icon: sIcon }).addTo(leafletMap);
+          lm.on('click', function() {
+            sendApp({ type: 'SURGE_SELECT', id: s.id });
+          });
+          surgeMarkers.push(lm);
+        }
       });
     }
   };
 
   window.recenter = function(lon, lat) {
-    map.easeTo({ center: [lon, lat], zoom: 16 });
-  };
-
-  window.togglePerspective = function(lon, lat, heading) {
-    const is3D = map.getPitch() > 20;
-    if (is3D) {
-      map.easeTo({ pitch: 0, bearing: 0, zoom: 15.5 });
-    } else {
-      map.easeTo({ pitch: 55, bearing: heading || 45, center: [lon, lat], zoom: 17 });
+    if (engine === 'maplibre' && maplibreMap) {
+      maplibreMap.easeTo({ center: [lon, lat], zoom: 16 });
+    } else if (engine === 'leaflet' && leafletMap) {
+      leafletMap.setView([lat, lon], 16, { animate: true });
     }
   };
 
-  window.zoomIn = function() { map.zoomIn(); };
-  window.zoomOut = function() { map.zoomOut(); };
+  window.togglePerspective = function(lon, lat, heading) {
+    if (engine === 'maplibre' && maplibreMap) {
+      var is3D = maplibreMap.getPitch() > 20;
+      if (is3D) {
+        maplibreMap.easeTo({ pitch: 0, bearing: 0, zoom: 15.5 });
+      } else {
+        maplibreMap.easeTo({ pitch: 55, bearing: heading || 45, center: [lon, lat], zoom: 17 });
+      }
+    } else if (engine === 'leaflet' && leafletMap) {
+      leafletMap.setView([lat, lon], 17, { animate: true });
+    }
+  };
+
+  window.zoomIn = function() {
+    if (engine === 'maplibre' && maplibreMap) maplibreMap.zoomIn();
+    else if (engine === 'leaflet' && leafletMap) leafletMap.zoomIn();
+  };
+
+  window.zoomOut = function() {
+    if (engine === 'maplibre' && maplibreMap) maplibreMap.zoomOut();
+    else if (engine === 'leaflet' && leafletMap) leafletMap.zoomOut();
+  };
 
   window.toggleNightMode = function(enabled) {
     if (enabled) {
