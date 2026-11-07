@@ -23,7 +23,6 @@ import {
   Spacing,
 } from '@/constants/design-system';
 import { useBooking } from '@/hooks/use-booking';
-import { autoAcceptDriverOrder } from '@/services/driver-demo';
 import { ENV } from '@/constants/env';
 
 const BACKEND_URL = ENV.API_URL;
@@ -86,17 +85,7 @@ export default function SearchingScreen() {
             setOrderUUID(uuid);
             refreshProfile().catch(() => {});
 
-            // Simulasikan driver menerima pesanan di backend untuk demo / staging flow
-            const driverVehicle = service === 'car' ? 'car' : 'motorcycle';
-            setTimeout(() => {
-              autoAcceptDriverOrder(
-                uuid,
-                driverVehicle,
-                pickup ? { lat: pickup.lat || -0.664159, lon: pickup.lon || 100.939844 } : undefined
-              ).catch(() => {});
-            }, 1800);
-
-            // Polling database secara berkala: cek apakah sudah ada driver yang menerima order di database
+            // Polling database secara berkala: tunggu driver di aplikasi UmfaGo Driver menerima order
             pollTimerRef.current = setInterval(async () => {
               try {
                 const statusRes = await fetch(`${BACKEND_URL}/api/orders/${uuid}`, {

@@ -22,10 +22,14 @@ import {
   Spacing,
 } from '@/constants/design-system';
 import { Wallet } from '@/constants/home-content';
+import { ENV } from '@/constants/env';
+import { useAuth } from '@/hooks/use-auth';
 import { useBooking } from '@/hooks/use-booking';
 import { updateDriverOrderStatus } from '@/services/driver-demo';
 import { getValhallaRoute } from '@/services/valhalla';
 import type { TripStatus } from '@/types/order';
+
+const BACKEND_URL = ENV.API_URL;
 
 const StatusCopy: Partial<Record<TripStatus, string>> = {
   pickup: 'Driver menuju titik jemput',
@@ -42,6 +46,7 @@ const FoodStatusCopy: Partial<Record<TripStatus, string>> = {
 export default function TripScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
   const { pickup, destination, route, driver, payment, status, setStatus, orderUUID, service, reset } = useBooking();
 
   const isFood = service === 'food';
@@ -50,6 +55,41 @@ export default function TripScreen() {
   const [driverPos, setDriverPos] = useState<{ lat: number; lon: number } | null>(null);
   const [pickupRouteCoords, setPickupRouteCoords] = useState<[number, number][] | null>(null);
   const [eta, setEta] = useState<number>(driver?.etaMinutes ?? 3);
+
+  // Sinkronisasi status order real-time dari aplikasi Driver (arrived -> in_progress -> completed)
+  useEffect(() => {
+    if (!orderUUID || !token) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/orders/${orderUUID}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const ord = data?.order;
+        if (!ord) return;
+
+        if (ord.status === 'arrived') {
+          setEta(1);
+          if (pickup?.lat && pickup?.lon) {
+            setDriverPos({ lat: pickup.lat, lon: pickup.lon });
+          }
+        } else if (ord.status === 'in_progress' && status !== 'onTrip' && status !== 'completed') {
+          setStatus('onTrip');
+        } else if (ord.status === 'completed' && status !== 'completed') {
+          setStatus('completed');
+          if (destination?.lat && destination?.lon) {
+            setDriverPos({ lat: destination.lat, lon: destination.lon });
+          }
+        }
+      } catch {
+        // ignore network hiccup
+      }
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [orderUUID, token, status, setStatus, pickup?.lat, pickup?.lon, destination?.lat, destination?.lon]);
 
   // Inisialisasi rute jalan raya dari posisi awal driver ke titik jemput penumpang
   useEffect(() => {

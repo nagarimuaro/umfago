@@ -566,7 +566,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           tipAmount: 0,
           paymentMethod: payload.payment_method === 'wallet' ? 'wallet' : 'cash',
           createdAt: 'Baru saja',
-          expiresInSeconds: 20,
+          expiresInSeconds: 30,
         };
 
         setIncomingOrder(initialIncoming);

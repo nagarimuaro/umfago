@@ -121,6 +121,9 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 	}
 
 	candidates := w.filterEligible(w.excludeOffered(payload.OrderUUID, nearby), payload.VehicleType, maxCandidates)
+	if len(candidates) == 0 && w.hub != nil {
+		candidates = w.filterEligible(w.excludeOffered(payload.OrderUUID, w.hub.OnlineDriverIDs()), payload.VehicleType, maxCandidates)
+	}
 
 	if len(candidates) == 0 {
 		// Jika masih ada tawaran aktif yang belum dijawab untuk order ini,
