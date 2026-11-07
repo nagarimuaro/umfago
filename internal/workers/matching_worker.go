@@ -171,7 +171,7 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 	_ = w.db.Select("id, name, phone").First(&rider, payload.RiderID).Error
 
 	var dbOrder models.Order
-	_ = w.db.Select("service_type, payment_method, notes").Where("uuid = ?", payload.OrderUUID).First(&dbOrder).Error
+	_ = w.db.Select("service_type, payment_method").Where("uuid = ?", payload.OrderUUID).First(&dbOrder).Error
 
 	offerPayload, err := json.Marshal(map[string]interface{}{
 		"order_uuid":      payload.OrderUUID,
@@ -186,7 +186,6 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 		"vehicle_type":    payload.VehicleType,
 		"service_type":    dbOrder.ServiceType,
 		"payment_method":  dbOrder.PaymentMethod,
-		"notes":           dbOrder.Notes,
 		"rider_id":        payload.RiderID,
 		"rider_name":      rider.Name,
 		"rider_phone":     rider.Phone,
