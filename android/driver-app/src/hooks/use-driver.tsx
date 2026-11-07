@@ -196,9 +196,43 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIncomingOrder(null);
   }, []);
 
-  // Simulasi pergerakan driver sepanjang rute saat perjalanan mengantar penumpang (in_trip)
+  // Simulasi pergerakan driver sepanjang rute saat jemput (heading_to_pickup) maupun antar (in_trip)
   useEffect(() => {
-    if (currentOrder?.step === 'in_trip') {
+    if (currentOrder?.step === 'heading_to_pickup') {
+      tripProgressRef.current = 0;
+      const pLat = currentOrder.pickup.latitude;
+      const pLon = currentOrder.pickup.longitude;
+      const startLat = currentLocation?.latitude && Math.abs(currentLocation.latitude - pLat) > 0.001
+        ? currentLocation.latitude
+        : pLat - 0.008;
+      const startLon = currentLocation?.longitude && Math.abs(currentLocation.longitude - pLon) > 0.001
+        ? currentLocation.longitude
+        : pLon - 0.006;
+      const heading = Math.round(calculateBearing(startLat, startLon, pLat, pLon));
+
+      setCurrentLocation({
+        latitude: startLat,
+        longitude: startLon,
+        heading,
+      });
+
+      tripSimTimer.current = setInterval(() => {
+        if (tripProgressRef.current < 0.95) {
+          tripProgressRef.current = Math.min(0.95, tripProgressRef.current + 0.05);
+          const prog = tripProgressRef.current;
+          const curLat = startLat + (pLat - startLat) * prog;
+          const curLon = startLon + (pLon - startLon) * prog;
+
+          setCurrentLocation({
+            latitude: curLat,
+            longitude: curLon,
+            heading,
+          });
+
+          DriverWebSocketService.sendLocation(curLat, curLon, heading, 30);
+        }
+      }, 2500);
+    } else if (currentOrder?.step === 'in_trip') {
       tripProgressRef.current = 0;
       const pLat = currentOrder.pickup.latitude;
       const pLon = currentOrder.pickup.longitude;

@@ -87,7 +87,6 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
               : [
                   [lon, lat],
                   [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
-                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
                 ],
           }
         : null,

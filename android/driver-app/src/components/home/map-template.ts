@@ -252,8 +252,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       if (state.order.route && state.order.route.length > 1) {
         const src = map.getSource('route');
         if (src) src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: state.order.route } });
-        if (state.order.step === 'in_trip') {
-          // Cockpit 3D navigation view: ikuti posisi driver menghadap tujuan
+        if (state.order.step === 'in_trip' || state.order.step === 'heading_to_pickup') {
+          // Cockpit 3D navigation view: ikuti posisi driver secara real-time saat jemput maupun antar
           map.easeTo({
             center: [state.driver.lon, state.driver.lat],
             zoom: 16.5,

@@ -1,8 +1,19 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Linking,
+  Alert,
+  Animated,
+  PanResponder,
+  Platform,
+} from 'react-native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, formatRupiah, rounded, spacing } from '../../constants/theme';
 import { useDriver } from '../../hooks/use-driver';
+import { SwipeToAccept } from './SwipeToAccept';
 
 interface ActiveOrderHUDProps {
   onOpenChat?: () => void;
@@ -11,6 +22,7 @@ interface ActiveOrderHUDProps {
 
 export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOpenNavigation }) => {
   const { currentOrder, advanceOrderStep, cancelActiveOrder } = useDriver();
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   if (!currentOrder) return null;
 
@@ -19,17 +31,43 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
   const isInTrip = currentOrder.step === 'in_trip';
 
   const getStepTitle = () => {
-    if (isHeadingToPickup) return 'Menuju Titik Penjemputan';
+    if (isHeadingToPickup) return 'Menuju Penjemputan';
     if (isArrivedAtPickup) return 'Tiba di Penjemputan';
     if (isInTrip) return 'Mengantar ke Destinasi';
     return 'Pesanan Berlangsung';
   };
 
-  const getStepActionLabel = () => {
-    if (isHeadingToPickup) return 'SAYA SUDAH TIBA';
-    if (isArrivedAtPickup) return 'MULAI PERJALANAN';
-    if (isInTrip) return 'SELESAIKAN ORDER';
-    return 'LANJUTKAN';
+  const getSwipeConfig = () => {
+    if (isHeadingToPickup) {
+      return {
+        title: 'Geser jika Sudah Tiba',
+        iconName: 'location-sharp' as const,
+        knobColor: colors.primary,
+        activeFillColor: 'rgba(200, 255, 0, 0.25)',
+      };
+    }
+    if (isArrivedAtPickup) {
+      return {
+        title: 'Geser untuk Mulai Perjalanan',
+        iconName: 'arrow-forward-sharp' as const,
+        knobColor: '#00E676',
+        activeFillColor: 'rgba(0, 230, 118, 0.25)',
+      };
+    }
+    if (isInTrip) {
+      return {
+        title: 'Geser untuk Selesaikan Order',
+        iconName: 'flag-sharp' as const,
+        knobColor: '#FFD600',
+        activeFillColor: 'rgba(255, 214, 0, 0.25)',
+      };
+    }
+    return {
+      title: 'Geser untuk Lanjutkan',
+      iconName: 'arrow-forward-sharp' as const,
+      knobColor: colors.primary,
+      activeFillColor: 'rgba(200, 255, 0, 0.25)',
+    };
   };
 
   const handleCallCustomer = () => {
@@ -58,18 +96,61 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
     );
   };
 
+  // PanResponder to swipe up to expand, swipe down to collapse
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 10,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy < -20) {
+          // Swipe up -> Expand
+          setIsExpanded(true);
+        } else if (g.dy > 20) {
+          // Swipe down -> Collapse
+          setIsExpanded(false);
+        }
+      },
+    })
+  ).current;
+
+  const swipeConfig = getSwipeConfig();
+
   return (
     <View style={styles.container}>
+      {/* Top Swipeable Grabber Handle */}
+      <View
+        {...panResponder.panHandlers}
+        style={styles.handleArea}
+      >
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setIsExpanded((prev) => !prev)}
+          style={styles.grabberTouch}
+        >
+          <View style={styles.grabberPill} />
+          <View style={styles.expandHintRow}>
+            <Ionicons
+              name={isExpanded ? 'chevron-down' : 'chevron-up'}
+              size={13}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.expandHintText}>
+              {isExpanded ? 'Geser ke bawah untuk minimalkan' : 'Geser ke atas untuk detail lengkap'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* Turn-by-Turn Instruction Strip */}
       <View style={styles.guidanceStrip}>
         <View style={styles.guidanceLeft}>
           <MaterialIcons
             name={isInTrip ? 'navigation' : isArrivedAtPickup ? 'place' : 'turn-slight-right'}
-            size={26}
-            color={colors.primary}
+            size={24}
+            color={swipeConfig.knobColor}
           />
           <View style={{ flex: 1 }}>
-            <Text style={styles.guidanceDistance}>
+            <Text style={[styles.guidanceDistance, { color: swipeConfig.knobColor }]}>
               {isInTrip
                 ? `${currentOrder.distanceKm} km Menuju Alamat Tujuan`
                 : isArrivedAtPickup
@@ -83,76 +164,92 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
         </View>
 
         <TouchableOpacity activeOpacity={0.8} onPress={handleOpenMaps} style={styles.mapsBtn}>
-          <Ionicons name="navigate" size={16} color={colors.black} />
+          <Ionicons name="navigate" size={15} color={colors.black} />
           <Text style={styles.mapsText}>Peta</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Main HUD Body */}
+      {/* HUD Body */}
       <View style={styles.hudBody}>
         {/* Step Indicator Header */}
         <View style={styles.statusRow}>
           <View style={styles.stepBadge}>
-            <View style={styles.dotPulse} />
+            <View style={[styles.dotPulse, { backgroundColor: swipeConfig.knobColor }]} />
             <Text style={styles.stepTitle}>{getStepTitle()}</Text>
           </View>
           <Text style={styles.orderAmount}>{formatRupiah(currentOrder.driverEarnings)}</Text>
         </View>
 
-        {/* Customer Info & Contact Row */}
-        <View style={styles.customerBox}>
-          <View style={styles.customerLeft}>
-            <View style={styles.customerAvatar}>
-              <Ionicons name="person" size={18} color={colors.onSurface} />
+        {/* Detailed Sections (Shown when card is expanded) */}
+        {isExpanded && (
+          <>
+            {/* Customer Info & Contact Row */}
+            <View style={styles.customerBox}>
+              <View style={styles.customerLeft}>
+                <View style={styles.customerAvatar}>
+                  <Ionicons name="person" size={18} color={colors.onSurface} />
+                </View>
+                <View>
+                  <Text style={styles.customerName}>{currentOrder.customer.name}</Text>
+                  <Text style={styles.customerRating}>⭐ {currentOrder.customer.rating} • Pembayaran Non-Tunai</Text>
+                </View>
+              </View>
+
+              <View style={styles.contactButtons}>
+                <TouchableOpacity activeOpacity={0.8} onPress={handleCallCustomer} style={styles.contactBtn}>
+                  <Ionicons name="call" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={onOpenChat || handleCallCustomer}
+                  style={styles.contactBtn}
+                >
+                  <Ionicons name="chatbubble-ellipses" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View>
-              <Text style={styles.customerName}>{currentOrder.customer.name}</Text>
-              <Text style={styles.customerRating}>⭐ {currentOrder.customer.rating} • Pembayaran Non-Tunai</Text>
+
+            {/* Target Address Card */}
+            <View style={styles.addressBox}>
+              <MaterialIcons
+                name={isInTrip ? 'location-on' : 'my-location'}
+                size={18}
+                color={isInTrip ? '#FF5252' : colors.primary}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.targetLabel}>
+                  {isInTrip ? 'LOKASI TUJUAN ANTAR' : 'LOKASI PENJEMPUTAN'}
+                </Text>
+                <Text style={styles.targetAddress} numberOfLines={2}>
+                  {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
+                </Text>
+                {isInTrip
+                  ? currentOrder.destination.landmark && (
+                      <Text style={styles.targetNote}>Catatan: {currentOrder.destination.landmark}</Text>
+                    )
+                  : currentOrder.pickup.landmark && (
+                      <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
+                    )}
+              </View>
             </View>
-          </View>
+          </>
+        )}
 
-          <View style={styles.contactButtons}>
-            <TouchableOpacity activeOpacity={0.8} onPress={handleCallCustomer} style={styles.contactBtn}>
-              <Ionicons name="call" size={18} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.8} onPress={onOpenChat || handleCallCustomer} style={styles.contactBtn}>
-              <Ionicons name="chatbubble-ellipses" size={18} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Target Address Card */}
-        <View style={styles.addressBox}>
-          <MaterialIcons
-            name={isInTrip ? 'location-on' : 'my-location'}
-            size={18}
-            color={isInTrip ? '#FF5252' : colors.primary}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.targetLabel}>{isInTrip ? 'LOKASI TUJUAN ANTAR' : 'LOKASI PENJEMPUTAN'}</Text>
-            <Text style={styles.targetAddress} numberOfLines={2}>
-              {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
-            </Text>
-            {isInTrip
-              ? currentOrder.destination.landmark && (
-                  <Text style={styles.targetNote}>Catatan: {currentOrder.destination.landmark}</Text>
-                )
-              : currentOrder.pickup.landmark && (
-                  <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
-                )}
-          </View>
-        </View>
-
-        {/* Main Action Button (Advance lifecycle) */}
+        {/* Action Row: Cancel Button & Swipe to Advance Slider */}
         <View style={styles.buttonRow}>
           <TouchableOpacity activeOpacity={0.8} onPress={handleCancel} style={styles.cancelBtn}>
             <Ionicons name="close" size={20} color="#FF8A80" />
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} onPress={advanceOrderStep} style={styles.primaryActionBtn}>
-            <MaterialIcons name="done-all" size={22} color={colors.black} />
-            <Text style={styles.primaryActionText}>{getStepActionLabel()}</Text>
-          </TouchableOpacity>
+          <View style={styles.swipeSliderContainer}>
+            <SwipeToAccept
+              onAccept={advanceOrderStep}
+              title={swipeConfig.title}
+              iconName={swipeConfig.iconName}
+              knobColor={swipeConfig.knobColor}
+              activeFillColor={swipeConfig.activeFillColor}
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -172,6 +269,37 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  handleArea: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 2,
+    backgroundColor: '#1A1C1C',
+    borderTopLeftRadius: rounded.lg,
+    borderTopRightRadius: rounded.lg,
+  },
+  grabberTouch: {
+    alignItems: 'center',
+    width: '100%',
+    paddingBottom: 4,
+  },
+  grabberPill: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#404444',
+    marginBottom: 4,
+  },
+  expandHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expandHintText: {
+    color: '#8A8F8F',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
   guidanceStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,7 +308,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.outline,
+    borderBottomColor: '#2B2D2D',
   },
   guidanceLeft: {
     flexDirection: 'row',
@@ -189,8 +317,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   guidanceDistance: {
-    color: colors.primary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
   },
   guidanceStreet: {
@@ -209,67 +336,66 @@ const styles = StyleSheet.create({
   },
   mapsText: {
     color: colors.black,
-    fontSize: 12,
     fontWeight: '800',
+    fontSize: 12,
   },
   hudBody: {
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   statusRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   stepBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#273500',
+    backgroundColor: '#222525',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: '#333838',
   },
   dotPulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   stepTitle: {
-    color: colors.primary,
+    color: colors.white,
     fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   orderAmount: {
-    color: colors.white,
-    fontSize: 20,
+    color: colors.primary,
+    fontSize: 16,
     fontWeight: '900',
+    letterSpacing: 0.5,
   },
   customerBox: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2020',
-    padding: spacing.md,
+    alignItems: 'center',
+    backgroundColor: '#1C1E1E',
+    padding: spacing.sm,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: colors.outline,
+    borderColor: '#2D3030',
   },
   customerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
+    gap: spacing.sm,
   },
   customerAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.surfaceHigh,
+    backgroundColor: '#2D3030',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -281,7 +407,7 @@ const styles = StyleSheet.create({
   customerRating: {
     color: colors.textSecondary,
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 1,
   },
   contactButtons: {
     flexDirection: 'row',
@@ -291,33 +417,34 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.surfaceHigh,
-    borderWidth: 1,
-    borderColor: colors.outline,
+    backgroundColor: '#262929',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#3D4141',
   },
   addressBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.md,
-    backgroundColor: '#131414',
-    padding: spacing.md,
+    gap: spacing.sm,
+    backgroundColor: '#1C1E1E',
+    padding: spacing.sm,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: '#232525',
+    borderColor: '#2D3030',
   },
   targetLabel: {
     color: colors.textSecondary,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+    marginBottom: 2,
   },
   targetAddress: {
     color: colors.white,
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 2,
+    lineHeight: 18,
   },
   targetNote: {
     color: colors.primary,
@@ -327,39 +454,21 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.xs,
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 4,
   },
   cancelBtn: {
     width: 52,
-    height: 52,
-    borderRadius: rounded.full,
-    backgroundColor: '#351010',
-    borderWidth: 1,
-    borderColor: '#7A1C1C',
+    height: 60,
+    borderRadius: 26,
+    backgroundColor: '#261818',
+    borderWidth: 1.5,
+    borderColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryActionBtn: {
+  swipeSliderContainer: {
     flex: 1,
-    height: 52,
-    borderRadius: rounded.full,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  primaryActionText: {
-    color: colors.black,
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 0.6,
   },
 });
-

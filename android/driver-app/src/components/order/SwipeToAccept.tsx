@@ -12,10 +12,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../constants/theme';
 
-interface SwipeToAcceptProps {
+export interface SwipeToAcceptProps {
   onAccept: () => void;
   title?: string;
   disabled?: boolean;
+  knobColor?: string;
+  iconName?: keyof typeof Ionicons.glyphMap;
+  activeFillColor?: string;
 }
 
 const KNOB_SIZE = 52;
@@ -25,6 +28,9 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
   onAccept,
   title = 'Geser untuk Terima Order',
   disabled = false,
+  knobColor = colors.primary,
+  iconName = 'arrow-forward-sharp',
+  activeFillColor = 'rgba(200, 255, 0, 0.25)',
 }) => {
   const windowWidth = Dimensions.get('window').width;
   const initialTrackWidth = Math.max(260, windowWidth - 32);
@@ -40,11 +46,11 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
   const onAcceptRef = useRef(onAccept);
   onAcceptRef.current = onAccept;
 
-  // Reset when disabled changes or modal remounts
+  // Reset when disabled or step title changes
   useEffect(() => {
     isAcceptedRef.current = false;
     slideX.setValue(0);
-  }, [disabled]);
+  }, [disabled, title]);
 
   const panResponder = useMemo(
     () =>
@@ -76,9 +82,9 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
             return;
           }
 
-          // Trigger acceptance if dragged past 58% or fast rightward swipe
+          // Trigger acceptance if dragged past 55% or fast rightward swipe
           const reached =
-            gestureState.dx >= max * 0.58 ||
+            gestureState.dx >= max * 0.55 ||
             (gestureState.vx > 0.5 && gestureState.dx > 30);
 
           if (reached) {
@@ -148,24 +154,27 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
         {...panResponder.panHandlers}
         style={styles.track}
       >
-        {/* Dynamic Neon Lime Fill as thumb slides */}
-        <Animated.View style={[styles.activeFill, { width: fillWidth }]} pointerEvents="none" />
+        {/* Dynamic Neon Fill as thumb slides */}
+        <Animated.View
+          style={[styles.activeFill, { width: fillWidth, backgroundColor: activeFillColor }]}
+          pointerEvents="none"
+        />
 
         {/* Shimmering Center Prompt Text */}
         <Animated.View style={[styles.textContainer, { opacity: textOpacity }]} pointerEvents="none">
           <Text style={styles.trackText}>{title}</Text>
           <View style={styles.chevronGroup}>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={16} color={knobColor} />
             <Ionicons
               name="chevron-forward"
               size={16}
-              color={colors.primary}
+              color={knobColor}
               style={{ marginLeft: -8, opacity: 0.7 }}
             />
             <Ionicons
               name="chevron-forward"
               size={16}
-              color={colors.primary}
+              color={knobColor}
               style={{ marginLeft: -8, opacity: 0.4 }}
             />
           </View>
@@ -176,12 +185,14 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
           style={[
             styles.knob,
             {
+              backgroundColor: knobColor,
+              shadowColor: knobColor,
               transform: [{ translateX: slideX }],
             },
           ]}
         >
           <Animated.View style={{ transform: [{ rotate: chevronRotate }] }} pointerEvents="none">
-            <Ionicons name="arrow-forward-sharp" size={24} color={colors.black} />
+            <Ionicons name={iconName} size={24} color={colors.black} />
           </Animated.View>
         </Animated.View>
       </View>
@@ -212,7 +223,6 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(200, 255, 0, 0.25)',
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
   },
@@ -242,10 +252,8 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.45,
     shadowRadius: 6,
