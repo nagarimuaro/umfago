@@ -157,3 +157,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
 });
+

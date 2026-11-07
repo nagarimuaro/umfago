@@ -65,3 +65,4 @@ export interface SurgeArea {
   radiusMeters: number;
   level: 'medium' | 'high' | 'critical';
 }
+
