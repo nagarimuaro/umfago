@@ -1,5 +1,12 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  type ViewStyle,
+  type TextStyle,
+} from 'react-native';
 import { colors, rounded, spacing } from '../../constants/theme';
 
 interface DsButtonProps {
@@ -9,12 +16,12 @@ interface DsButtonProps {
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   style?: ViewStyle;
   textStyle?: TextStyle;
 }
 
-export const DsButton: React.FC<DsButtonProps> = ({
+export function DsButton({
   title,
   onPress,
   variant = 'primary',
@@ -24,7 +31,7 @@ export const DsButton: React.FC<DsButtonProps> = ({
   icon,
   style,
   textStyle,
-}) => {
+}: DsButtonProps) {
   const getContainerStyle = () => {
     switch (variant) {
       case 'primary':
@@ -83,7 +90,7 @@ export const DsButton: React.FC<DsButtonProps> = ({
       )}
     </TouchableOpacity>
   );
-};
+}
 
 const styles = StyleSheet.create({
   baseBtn: {
@@ -145,4 +152,3 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
 });
-

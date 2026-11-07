@@ -1,14 +1,14 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import { View, StyleSheet, type ViewStyle } from 'react-native';
 import { colors, rounded, spacing } from '../../constants/theme';
 
 interface DsCardProps {
-  children: React.ReactNode;
+  children: ReactNode;
   style?: ViewStyle;
   variant?: 'container' | 'low' | 'high';
 }
 
-export const DsCard: React.FC<DsCardProps> = ({ children, style, variant = 'container' }) => {
+export function DsCard({ children, style, variant = 'container' }: DsCardProps) {
   const getBgColor = () => {
     switch (variant) {
       case 'low':
@@ -21,7 +21,7 @@ export const DsCard: React.FC<DsCardProps> = ({ children, style, variant = 'cont
   };
 
   return <View style={[styles.card, { backgroundColor: getBgColor() }, style]}>{children}</View>;
-};
+}
 
 const styles = StyleSheet.create({
   card: {
@@ -31,4 +31,3 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
 });
-

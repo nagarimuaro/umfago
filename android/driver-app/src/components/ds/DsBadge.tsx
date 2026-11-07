@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, rounded, spacing } from '../../constants/theme';
+import { View, Text, StyleSheet, type ViewStyle } from 'react-native';
+import { colors, rounded } from '../../constants/theme';
 
 interface DsBadgeProps {
   label: string;
@@ -8,7 +7,7 @@ interface DsBadgeProps {
   style?: ViewStyle;
 }
 
-export const DsBadge: React.FC<DsBadgeProps> = ({ label, variant = 'lime', style }) => {
+export function DsBadge({ label, variant = 'lime', style }: DsBadgeProps) {
   const getBadgeStyle = () => {
     switch (variant) {
       case 'lime':
@@ -39,7 +38,7 @@ export const DsBadge: React.FC<DsBadgeProps> = ({ label, variant = 'lime', style
       <Text style={[styles.text, { color: current.text }]}>{label}</Text>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   badge: {
@@ -57,4 +56,3 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
-

@@ -2,6 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -18,4 +23,3 @@
     "expo-env.d.ts"
   ]
 }
-
