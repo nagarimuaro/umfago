@@ -25,24 +25,28 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #121517; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
+    body.night-mode { background: #4e5446; }
 
     #map-viewport {
       width: 100%;
       height: 100%;
       position: relative;
       overflow: hidden;
-      background: #121517;
-      perspective: 700px;
+      background: #e5e7eb;
+      perspective: 1000px;
+    }
+    body.night-mode #map-viewport {
+      background: #4e5446;
     }
 
     #map {
       position: absolute;
-      width: 240%;
-      height: 240%;
-      left: -70%;
-      top: -54%;
-      background: #121517;
+      width: 460%;
+      height: 460%;
+      left: -180%;
+      top: -165%;
+      background: #e5e7eb;
       transform-origin: 50% 50%;
       will-change: transform;
     }
@@ -53,7 +57,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
 
     /* Night Mode Filter for ArcGIS World Street Map */
-    body.night-mode #map { background: #121517; }
+    body.night-mode #map { background: #4e5446; }
     body.night-mode .leaflet-tile-pane {
       filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
     }
@@ -280,7 +284,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     var mapEl = document.getElementById('map');
     var driverPin = document.querySelector('.driver-pin');
     var isTilted = document.body.classList.contains('tilted');
-    var tiltDeg = isTilted ? 34 : 0;
+    var tiltDeg = isTilted ? 22 : 0;
 
     if (isNavigating) {
       // 1. Heading-Up Mode: Map rotates by -heading so the route and road always go straight UP
@@ -515,7 +519,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
       maxNativeZoom: 18,
       maxZoom: 20,
-      keepBuffer: 12,
+      keepBuffer: 16,
       updateInterval: 50,
       updateWhenIdle: false,
       updateWhenZooming: false

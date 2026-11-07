@@ -67,14 +67,14 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
-  perspective: 700px;
+  perspective: 1000px;
 }
 #map {
   position: absolute;
-  width: 240%;
-  height: 240%;
-  left: -70%;
-  top: -54%;
+  width: 460%;
+  height: 460%;
+  left: -180%;
+  top: -165%;
   background: #e5e7eb;
   transform-origin: 50% 50%;
   will-change: transform;
@@ -104,7 +104,7 @@ const map = L.map('map', { zoomControl: false, attributionControl: false, zoomSn
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
   maxNativeZoom: 18,
   maxZoom: 20,
-  keepBuffer: 12,
+  keepBuffer: 16,
   updateInterval: 50,
   updateWhenIdle: false,
   updateWhenZooming: false
@@ -190,7 +190,7 @@ function updateNavigationOrientation(heading) {
   var mapEl = document.getElementById('map');
   var pin = document.querySelector('.mk-driver');
   var isTilted = document.body.classList.contains('tilted');
-  var tiltDeg = isTilted ? 34 : 0;
+  var tiltDeg = isTilted ? 22 : 0;
 
   if (isTrackingDriver) {
     if (mapEl) {
