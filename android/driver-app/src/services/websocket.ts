@@ -1,6 +1,7 @@
 /**
  * UmfaGo Driver Realtime WebSocket Service
  * Listens for incoming ride dispatches and broadcasts GPS location updates
+ * Aligned with Golang backend in internal/websocket/hub.go
  */
 
 const WS_URL = process.env.EXPO_PUBLIC_WS_URL || 'wss://umfa-core.fazalabs.sbs/ws';
@@ -12,14 +13,19 @@ export class DriverWebSocketService {
   private static listeners: Set<MessageHandler> = new Set();
   private static reconnectTimer: any = null;
   private static isExplicitlyClosed = false;
+  private static currentToken: string | null = null;
 
   public static connect(token?: string) {
+    if (token) {
+      this.currentToken = token;
+    }
+
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     this.isExplicitlyClosed = false;
-    const url = token ? `${WS_URL}?token=${token}` : WS_URL;
+    const url = this.currentToken ? `${WS_URL}?token=${this.currentToken}` : WS_URL;
 
     try {
       this.socket = new WebSocket(url);
@@ -30,8 +36,24 @@ export class DriverWebSocketService {
 
       this.socket.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data);
-          this.listeners.forEach((listener) => listener(payload));
+          const raw = JSON.parse(event.data);
+          // Backend sends { type: string, payload: any }
+          // If payload is a JSON string or object, parse it
+          let payload = raw.payload;
+          if (typeof payload === 'string') {
+            try {
+              payload = JSON.parse(payload);
+            } catch {
+              // keep as string
+            }
+          }
+
+          const normalized = {
+            type: raw.type,
+            ...(typeof payload === 'object' && payload !== null ? payload : { payload }),
+          };
+
+          this.listeners.forEach((listener) => listener(normalized));
         } catch (e) {
           console.warn('[DriverWS] Non-JSON payload received:', event.data);
         }
@@ -46,7 +68,7 @@ export class DriverWebSocketService {
         if (!this.isExplicitlyClosed) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = setTimeout(() => {
-            this.connect(token);
+            this.connect(this.currentToken || undefined);
           }, 5000);
         }
       };
@@ -55,16 +77,23 @@ export class DriverWebSocketService {
     }
   }
 
+  /**
+   * Broadcast Driver Live Location to Backend Redis Index
+   * Backend expects { type: "location_update", payload: { lat, lon } }
+   * See internal/websocket/hub.go:346
+   */
   public static sendLocation(lat: number, lon: number, heading: number = 0, speed: number = 0) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(
         JSON.stringify({
           type: 'location_update',
-          latitude: lat,
-          longitude: lon,
-          heading,
-          speed,
-          timestamp: Date.now(),
+          payload: {
+            lat,
+            lon,
+            heading,
+            speed,
+            timestamp: Date.now(),
+          },
         })
       );
     }
@@ -86,4 +115,3 @@ export class DriverWebSocketService {
     }
   }
 }
-

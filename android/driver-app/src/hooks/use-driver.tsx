@@ -86,33 +86,35 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     DriverWebSocketService.connect();
     const unsub = DriverWebSocketService.addListener((payload) => {
       if (payload.type === 'incoming_order' || payload.type === 'order_offered') {
+        const orderUuid = payload.order_uuid || payload.order?.uuid || `ord-${Date.now()}`;
+        const fare = payload.fare_amount || payload.order?.fare || 24000;
         setIncomingOrder({
-          id: payload.order?.uuid || `ord-${Date.now()}`,
-          code: payload.order?.code || `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-          serviceType: payload.order?.service_type || 'ride',
+          id: orderUuid,
+          code: payload.code || payload.order?.code || `ORD-${orderUuid.slice(-4).toUpperCase()}`,
+          serviceType: payload.vehicle_type === 'car' ? 'car' : 'ride',
           step: 'offered',
           status: 'searching',
           customer: {
-            id: payload.order?.rider_id || 99,
-            name: payload.order?.rider_name || 'Pelanggan UmfaGo',
-            phone: payload.order?.rider_phone || '+62 812-0000-0000',
+            id: payload.rider_id || payload.order?.rider_id || 99,
+            name: payload.rider_name || payload.order?.rider_name || 'Pelanggan UmfaGo',
+            phone: payload.rider_phone || payload.order?.rider_phone || '+62 812-0000-0000',
             rating: 4.9,
           },
           pickup: {
-            latitude: payload.order?.origin_lat || -6.1952,
-            longitude: payload.order?.origin_lng || 106.8231,
-            address: payload.order?.origin_address || 'Grand Indonesia, Jakarta',
+            latitude: payload.pickup_lat ?? payload.order?.origin_lat ?? -6.1952,
+            longitude: payload.pickup_lon ?? payload.order?.origin_lng ?? 106.8231,
+            address: payload.pickup_address || payload.order?.origin_address || 'Grand Indonesia, Jakarta',
           },
           destination: {
-            latitude: payload.order?.destination_lat || -6.2255,
-            longitude: payload.order?.destination_lng || 106.8095,
-            address: payload.order?.destination_address || 'SCBD Jakarta Selatan',
+            latitude: payload.dropoff_lat ?? payload.order?.destination_lat ?? -6.2255,
+            longitude: payload.dropoff_lon ?? payload.order?.destination_lng ?? 106.8095,
+            address: payload.dropoff_address || payload.order?.destination_address || 'SCBD Jakarta Selatan',
           },
-          distanceKm: payload.order?.distance_km || 4.2,
-          estimatedDurationMinutes: payload.order?.duration_minutes || 15,
-          fareAmount: payload.order?.fare || 22000,
-          driverEarnings: Math.round((payload.order?.fare || 22000) * 0.85),
-          platformFee: Math.round((payload.order?.fare || 22000) * 0.15),
+          distanceKm: payload.distance_km || payload.order?.distance_km || 4.2,
+          estimatedDurationMinutes: payload.duration_minutes || payload.order?.duration_minutes || 15,
+          fareAmount: fare,
+          driverEarnings: Math.round(fare * 0.85),
+          platformFee: Math.round(fare * 0.15),
           tipAmount: 0,
           paymentMethod: 'wallet',
           createdAt: 'Baru saja',
