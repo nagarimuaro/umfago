@@ -34,6 +34,7 @@ interface DriverContextType {
     role?: 'driver_motorcycle' | 'driver_car'
   ) => Promise<{ success: boolean; error?: string }>;
   logoutDriver: () => void;
+  withdrawBalance: (amount: number) => Promise<{ success: boolean; error?: string }>;
 }
 
 const DriverContext = createContext<DriverContextType | null>(null);
@@ -95,6 +96,85 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     isOnlineRef.current = isOnline;
   }, [isOnline]);
+
+  const syncBackendData = useCallback(async () => {
+    try {
+      const [earnings, ordersData] = await Promise.all([
+        DriverApiService.getDriverEarnings(),
+        DriverApiService.getDriverOrders(1),
+      ]);
+
+      if (earnings) {
+        setDriver((prev) => ({
+          ...prev,
+          balance: typeof earnings.current_balance === 'number' ? earnings.current_balance : prev.balance,
+          stats: {
+            ...prev.stats,
+            todayEarnings:
+              typeof earnings.summary?.driver_earning === 'number'
+                ? Math.max(prev.stats.todayEarnings, earnings.summary.driver_earning)
+                : prev.stats.todayEarnings,
+            completedTrips:
+              typeof earnings.summary?.trips === 'number'
+                ? Math.max(prev.stats.completedTrips, earnings.summary.trips)
+                : prev.stats.completedTrips,
+          },
+        }));
+      }
+
+      if (ordersData && Array.isArray(ordersData.orders) && ordersData.orders.length > 0) {
+        const mappedOrders: DriverOrder[] = ordersData.orders.map((o: any) => {
+          const fare = typeof o.fare_amount === 'number' ? o.fare_amount : 22000;
+          const net = typeof o.driver_earning === 'number' ? o.driver_earning : Math.round(fare * 0.85);
+          const fee = typeof o.platform_fee === 'number' ? o.platform_fee : Math.max(0, fare - net);
+          const isCompleted = o.status === 'completed';
+          const isCancelled = o.status === 'cancelled';
+          const dateLabel = o.created_at
+            ? new Date(o.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            : 'Hari ini';
+
+          return {
+            id: o.uuid || String(o.id),
+            code: `ORD-${(o.uuid || '0000').slice(-4).toUpperCase()}`,
+            serviceType: o.service_type === 'car' ? 'car' : 'ride',
+            step: isCompleted ? 'completed' : 'heading_to_pickup',
+            status: isCompleted ? 'completed' : isCancelled ? 'cancelled' : 'in_progress',
+            customer: {
+              id: o.user_id || 1,
+              name: o.customer_name || 'Pelanggan UmfaGo',
+              phone: '+62 812-0000-0000',
+              rating: 4.9,
+            },
+            pickup: {
+              latitude: o.pickup_lat || -6.1952,
+              longitude: o.pickup_lng || 106.8231,
+              address: o.pickup_address || 'Lokasi Penjemputan',
+            },
+            destination: {
+              latitude: o.dropoff_lat || -6.2255,
+              longitude: o.dropoff_lng || 106.8095,
+              address: o.dropoff_address || 'Lokasi Tujuan',
+            },
+            distanceKm: o.distance_km || 3.5,
+            estimatedDurationMinutes: o.duration_minutes || 12,
+            fareAmount: fare,
+            driverEarnings: net,
+            platformFee: fee,
+            tipAmount: o.tip_amount || 0,
+            paymentMethod: o.payment_method === 'cash' ? 'cash' : 'wallet',
+            createdAt: dateLabel,
+          };
+        });
+
+        setOrderHistory((prev) => {
+          const existingIds = new Set(mappedOrders.map((m) => m.id));
+          return [...mappedOrders, ...prev.filter((p) => !existingIds.has(p.id))];
+        });
+      }
+    } catch {
+      // Fallback to local state silently
+    }
+  }, []);
 
   // Initialize GPS & Compass Tracking (Once on mount)
   useEffect(() => {
@@ -176,26 +256,13 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           DriverWebSocketService.connect(token);
         }
 
-        // Sync online status & real shift earnings with backend
+        // Sync online status, real shift earnings & order history with backend
         if (token && token !== 'demo-local-session') {
           if (isOnlineRef.current) {
             await DriverApiService.setDriverStatus('online');
           }
-          const earnings = await DriverApiService.getDriverEarnings();
-          if (earnings && isMounted) {
-            setDriver((prev) => ({
-              ...prev,
-              balance: typeof earnings.current_balance === 'number' ? earnings.current_balance : prev.balance,
-              stats: {
-                ...prev.stats,
-                todayEarnings: typeof earnings.summary?.driver_earning === 'number'
-                  ? Math.max(prev.stats.todayEarnings, earnings.summary.driver_earning)
-                  : prev.stats.todayEarnings,
-                completedTrips: typeof earnings.summary?.trips === 'number'
-                  ? Math.max(prev.stats.completedTrips, earnings.summary.trips)
-                  : prev.stats.completedTrips,
-              },
-            }));
+          if (isMounted) {
+            await syncBackendData();
           }
         }
       } catch {
@@ -281,8 +348,11 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [incomingOrder]);
 
   const rejectIncomingOrder = useCallback(() => {
+    if (incomingOrder?.id) {
+      DriverApiService.rejectOrder(incomingOrder.id);
+    }
     setIncomingOrder(null);
-  }, []);
+  }, [incomingOrder]);
 
   // Navigasi jalan raya riil (jarak terdekat via OSRM / Valhalla)
   // Driver bergerak mengikuti kontur jalan, belokan, dan tikungan riil
@@ -606,7 +676,23 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     DriverWebSocketService.connect(res.token);
     await DriverApiService.setDriverStatus('online');
+    await syncBackendData();
     return { success: true };
+  }, [syncBackendData]);
+
+  const withdrawBalance = useCallback(async (amount: number) => {
+    const ok = await DriverApiService.withdraw(amount);
+    if (ok) {
+      setDriver((prev) => ({
+        ...prev,
+        balance: Math.max(0, prev.balance - amount),
+      }));
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: 'Penarikan gagal atau saldo/KYC belum memenuhi syarat.',
+    };
   }, []);
 
   const registerDriver = useCallback(
@@ -657,6 +743,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         loginDriver,
         registerDriver,
         logoutDriver,
+        withdrawBalance,
       }}
     >
       {children}

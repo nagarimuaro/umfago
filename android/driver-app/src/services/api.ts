@@ -439,4 +439,45 @@ export class DriverApiService {
     }
     return [];
   }
+
+  // ── Notifications & Emergency Support ─────────────────────────
+
+  /**
+   * Fetch Driver Notifications
+   * GET /api/notifications
+   */
+  public static async getNotifications(): Promise<{ notifications: any[]; unread_count: number }> {
+    try {
+      const response = await fetch(`${BASE_URL}/api/notifications`, {
+        headers: this.getHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          notifications: data.notifications || [],
+          unread_count: data.unread_count || 0,
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return { notifications: [], unread_count: 0 };
+  }
+
+  /**
+   * Create Emergency / Support Ticket
+   * POST /api/support/tickets
+   */
+  public static async createSupportTicket(subject: string, description: string, priority: string = 'high'): Promise<boolean> {
+    try {
+      const response = await fetch(`${BASE_URL}/api/support/tickets`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ subject, description, category: 'emergency', priority }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
 }

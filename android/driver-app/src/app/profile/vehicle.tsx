@@ -5,16 +5,25 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleCard } from '../../components/profile/VehicleCard';
 import { useDriver } from '../../hooks/use-driver';
+import { DriverApiService } from '../../services/api';
 import { colors, rounded, spacing } from '../../constants/theme';
 
 export default function VehicleScreen() {
   const router = useRouter();
   const { driver } = useDriver();
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
+    const ok = await DriverApiService.updateDriverProfile({
+      vehicle_brand: driver.vehicle.model.split(' ')[0] || 'Honda',
+      vehicle_model: driver.vehicle.model,
+      vehicle_plate: driver.vehicle.plateNumber,
+      vehicle_year: driver.vehicle.year,
+    });
     Alert.alert(
-      'Perbarui Kendaraan',
-      'Untuk mengganti plat nomor atau unit kendaraan, silakan lampirkan foto fisik STNK terbaru untuk diverifikasi tim operasional.',
+      'Data Kendaraan Tersinkronisasi',
+      ok
+        ? `Data kendaraan ${driver.vehicle.model} (${driver.vehicle.plateNumber}) berhasil diperbarui ke server UmfaGo.`
+        : 'Untuk mengganti plat nomor atau unit kendaraan, silakan lampirkan foto fisik STNK terbaru untuk diverifikasi tim operasional.',
       [{ text: 'Tutup' }]
     );
   };

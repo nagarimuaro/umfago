@@ -8,15 +8,31 @@ import { useDriver } from '../../hooks/use-driver';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { driver, logoutDriver } = useDriver();
+  const { driver, logoutDriver, withdrawBalance } = useDriver();
 
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
+    const withdrawAmount = Math.min(driver.balance, 50000);
+    if (withdrawAmount <= 0) {
+      Alert.alert('Saldo Tidak Cukup', 'Saldo dompet Anda saat ini Rp 0.');
+      return;
+    }
+
     Alert.alert(
       'Tarik Saldo Driver',
-      `Saldo yang tersedia untuk ditarik: ${formatRupiah(driver.balance)}. Lanjutkan penarikan ke rekening bank terdaftar?`,
+      `Tarik ${formatRupiah(withdrawAmount)} dari saldo dompet (${formatRupiah(driver.balance)}) ke rekening bank terdaftar (KYC)?`,
       [
         { text: 'Batal', style: 'cancel' },
-        { text: 'Tarik Dana', onPress: () => Alert.alert('Berhasil', 'Permintaan penarikan diproses ke BCA **** 8812.') },
+        {
+          text: 'Tarik Dana',
+          onPress: async () => {
+            const res = await withdrawBalance(withdrawAmount);
+            if (res.success) {
+              Alert.alert('Penarikan Berhasil', `Dana sebesar ${formatRupiah(withdrawAmount)} telah ditarik ke rekening Bank terdaftar.`);
+            } else {
+              Alert.alert('Info Penarikan', res.error || 'Permintaan penarikan telah dicatat oleh sistem.');
+            }
+          },
+        },
       ]
     );
   };

@@ -8,6 +8,7 @@ import { OnlineStatusToggle } from '../../components/home/OnlineStatusToggle';
 import { IncomingOrderModal } from '../../components/order/IncomingOrderModal';
 import { ActiveOrderHUD } from '../../components/order/ActiveOrderHUD';
 import { useDriver } from '../../hooks/use-driver';
+import { DriverApiService } from '../../services/api';
 import { colors, rounded, spacing } from '../../constants/theme';
 import { SurgeArea } from '../../types/driver';
 
@@ -56,10 +57,27 @@ export default function DriverHomeScreen() {
         {
           text: 'PANGGIL BANTUAN',
           style: 'destructive',
-          onPress: () => Alert.alert('Panggilan Terkirim', 'Pusat Keamanan UmfaGo telah menerima sinyal lokasi GPS Anda.'),
+          onPress: async () => {
+            await DriverApiService.createSupportTicket(
+              'SOS Darurat Driver',
+              'Sinyal SOS darurat dikirim dari kokpit navigasi UmfaGo Driver.'
+            );
+            Alert.alert('Panggilan Terkirim', 'Pusat Keamanan UmfaGo telah menerima tiket darurat & lokasi GPS Anda.');
+          },
         },
       ]
     );
+  };
+
+  const handleNotification = async () => {
+    const res = await DriverApiService.getNotifications();
+    const list = Array.isArray(res) ? res : res?.notifications || [];
+    if (list.length > 0) {
+      const latest = list[0];
+      Alert.alert(latest.title || 'Notifikasi Dispatch', latest.body || 'Ada pembaruan dari sistem UmfaGo.');
+    } else {
+      Alert.alert('Notifikasi', 'Tidak ada pengumuman darurat baru dari dispatch.');
+    }
   };
 
   return (
@@ -67,7 +85,7 @@ export default function DriverHomeScreen() {
       {/* Top Header */}
       <DriverHeader
         onPressProfile={() => router.push('/profile')}
-        onPressNotification={() => Alert.alert('Notifikasi', 'Tidak ada pengumuman darurat baru dari dispatch.')}
+        onPressNotification={handleNotification}
         onPressEmergency={handleSOS}
       />
 

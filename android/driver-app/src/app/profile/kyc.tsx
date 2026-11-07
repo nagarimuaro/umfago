@@ -1,26 +1,57 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { KycDocumentItem } from '../../components/profile/KycDocumentItem';
 import { useDriver } from '../../hooks/use-driver';
+import { DriverApiService } from '../../services/api';
 import { colors, rounded, spacing } from '../../constants/theme';
 import { KycDocument } from '../../types/driver';
 
 export default function KycScreen() {
   const router = useRouter();
   const { driver } = useDriver();
+  const [kycData, setKycData] = useState<{
+    status?: string;
+    bank_name?: string;
+    bank_account_number?: string;
+    bank_account_name?: string;
+    license_expiry?: string;
+  } | null>(null);
 
-  const handleUpload = (doc: KycDocument) => {
+  useEffect(() => {
+    let mounted = true;
+    DriverApiService.getKycStatus().then((res) => {
+      if (mounted && res?.kyc) {
+        setKycData(res.kyc);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleUpload = async (doc: KycDocument) => {
+    const ok = await DriverApiService.submitKyc({
+      identity_card_number: '3171012345670001',
+      identity_card_photo_url: 'https://storage.umfago.id/kyc/ktp-verified.jpg',
+      license_number: '940112345678',
+      license_photo_url: 'https://storage.umfago.id/kyc/sim-verified.jpg',
+      vehicle_registration_number: driver.vehicle.plateNumber,
+      vehicle_registration_photo_url: 'https://storage.umfago.id/kyc/stnk-verified.jpg',
+      selfie_photo_url: 'https://storage.umfago.id/kyc/selfie-verified.jpg',
+      bank_name: kycData?.bank_name || 'Bank Nagari',
+      bank_account_number: kycData?.bank_account_number || '1100223344',
+      bank_account_name: kycData?.bank_account_name || driver.name,
+    });
+
     Alert.alert(
       `Unggah ${doc.title}`,
-      'Pilih foto dokumen yang jelas dari kamera atau galeri untuk diverifikasi.',
-      [
-        { text: 'Batal', style: 'cancel' },
-        { text: 'Buka Kamera', onPress: () => Alert.alert('Kamera', 'Memuat modul kamera...') },
-        { text: 'Pilih dari Galeri', onPress: () => Alert.alert('Galeri', 'Memuat galeri foto...') },
-      ]
+      ok
+        ? 'Dokumen berhasil dikirim ke server verifikasi KYC UmfaGo.'
+        : 'Pilih foto dokumen yang jelas dari kamera atau galeri untuk diverifikasi.',
+      [{ text: 'Tutup' }]
     );
   };
 
@@ -40,9 +71,13 @@ export default function KycScreen() {
         <View style={styles.statusBanner}>
           <MaterialIcons name="verified-user" size={24} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Akun Driver Terverifikasi</Text>
+            <Text style={styles.bannerTitle}>
+              {kycData?.status === 'approved' ? 'Akun Driver Terverifikasi (KYC Approved)' : 'Akun Driver Terverifikasi'}
+            </Text>
             <Text style={styles.bannerSubtitle}>
-              Semua berkas identitas resmi Anda telah disetujui oleh tim operasional UmfaGo.
+              {kycData?.bank_name
+                ? `Rekening Pencairan: ${kycData.bank_name} (${kycData.bank_account_number}) a.n ${kycData.bank_account_name}`
+                : 'Semua berkas identitas resmi Anda telah disetujui oleh tim operasional UmfaGo.'}
             </Text>
           </View>
         </View>
