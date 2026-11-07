@@ -1048,7 +1048,7 @@ func (h *OrderHandler) GetOrderByUUID(c *gin.Context) {
 	}
 
 	// Hanya rider pemilik order, driver yang ditugaskan (atau saat order masih searching), atau admin yang boleh melihat
-	isAssignedOrOfferedDriver := (order.DriverID != nil && *order.DriverID == userID) || (role == models.RoleDriver && order.Status == models.StatusSearching)
+	isAssignedOrOfferedDriver := (order.DriverID != nil && *order.DriverID == userID) || (models.IsDriverRole(role) && order.Status == models.StatusSearching)
 	if !models.IsAdminRole(role) && order.RiderID != userID && !isAssignedOrOfferedDriver {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to view this order"})
 		return
