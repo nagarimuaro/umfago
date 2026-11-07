@@ -12,8 +12,12 @@ export class DriverWebSocketService {
   private static socket: WebSocket | null = null;
   private static listeners: Set<MessageHandler> = new Set();
   private static reconnectTimer: any = null;
+  private static heartbeatTimer: any = null;
   private static isExplicitlyClosed = false;
   private static currentToken: string | null = null;
+  private static lastLat = -6.1952;
+  private static lastLon = 106.8231;
+  private static lastHeading = 90;
 
   public static connect(token?: string) {
     if (token) {
@@ -39,6 +43,13 @@ export class DriverWebSocketService {
 
       this.socket.onopen = () => {
         console.log('[DriverWS] Connected to realtime dispatch hub');
+        // Immediately register driver position in Redis GEO (active_drivers)
+        this.sendLocation(this.lastLat, this.lastLon, this.lastHeading, 0);
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = setInterval(() => {
+          this.sendLocation(this.lastLat, this.lastLon, this.lastHeading, 0);
+        }, 5000);
+        this.listeners.forEach((listener) => listener({ type: 'ws_connected' }));
       };
 
       this.socket.onmessage = (event) => {
@@ -72,6 +83,7 @@ export class DriverWebSocketService {
 
       this.socket.onclose = () => {
         console.log('[DriverWS] Disconnected');
+        clearInterval(this.heartbeatTimer);
         this.socket = null;
         if (!this.isExplicitlyClosed && this.currentToken) {
           clearTimeout(this.reconnectTimer);
@@ -93,6 +105,9 @@ export class DriverWebSocketService {
    * See internal/websocket/hub.go:346
    */
   public static sendLocation(lat: number, lon: number, heading: number = 0, speed: number = 0) {
+    this.lastLat = lat;
+    this.lastLon = lon;
+    this.lastHeading = heading;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(
         JSON.stringify({
@@ -119,6 +134,7 @@ export class DriverWebSocketService {
   public static disconnect() {
     this.isExplicitlyClosed = true;
     clearTimeout(this.reconnectTimer);
+    clearInterval(this.heartbeatTimer);
     if (this.socket) {
       this.socket.close();
       this.socket = null;

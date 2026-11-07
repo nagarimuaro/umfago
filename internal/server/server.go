@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -165,6 +166,16 @@ func NewServer() *Server {
 	wsHandler := handlers.NewWebSocketHandler(hub, jwtSvc, locRepo, cfg.AllowedWSOrigins)
 	sduiHandler := handlers.NewSDUIHandler(sduiBuilder, settingsRepo)
 	orderHandler := handlers.NewOrderHandler(database, rmq, priceCalc, walletRepo, hub, notifRepo)
+	orderHandler.SetDispatcher(func(raw map[string]interface{}) {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			return
+		}
+		var payload workers.OrderCreatedPayload
+		if err := json.Unmarshal(b, &payload); err == nil {
+			matchingWorker.Dispatch(context.Background(), payload)
+		}
+	})
 	walletHandler := handlers.NewWalletHandler(database, midtransSvc, walletRepo)
 	webhookHandler := handlers.NewWebhookHandler(database, midtransSvc, walletRepo, hub, notifRepo)
 	chatHandler := handlers.NewChatHandler(database, hub)

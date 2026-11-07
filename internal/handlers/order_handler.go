@@ -22,12 +22,17 @@ import (
 )
 
 type OrderHandler struct {
-	db      *gorm.DB
-	rmq     *broker.RabbitMQ
-	pricing *pricing.Calculator
-	wallet  *repository.WalletRepository
-	hub     *ws.Hub
-	notif   *repository.NotificationRepository
+	db       *gorm.DB
+	rmq      *broker.RabbitMQ
+	pricing  *pricing.Calculator
+	wallet   *repository.WalletRepository
+	hub      *ws.Hub
+	notif    *repository.NotificationRepository
+	dispatch func(payload map[string]interface{})
+}
+
+func (h *OrderHandler) SetDispatcher(fn func(payload map[string]interface{})) {
+	h.dispatch = fn
 }
 
 func NewOrderHandler(
@@ -326,18 +331,24 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// 3. Publish Event ke RabbitMQ (Matching Worker akan menangani pencarian Driver)
+	// 3. Publish Event ke RabbitMQ (atau langsung ke MatchingWorker bila RabbitMQ tidak aktif)
+	dispatchPayload := map[string]interface{}{
+		"order_uuid":      order.UUID,
+		"rider_id":        order.RiderID,
+		"pickup_lat":      order.PickupLat,
+		"pickup_lon":      order.PickupLon,
+		"pickup_address":  order.PickupAddress,
+		"dropoff_lat":     order.DropoffLat,
+		"dropoff_lon":     order.DropoffLon,
+		"dropoff_address": order.DropoffAddress,
+		"distance_km":     order.DistanceKm,
+		"fare_amount":     order.FareAmount,
+		"vehicle_type":    order.VehicleType,
+	}
 	if h.rmq != nil {
-		payload := map[string]interface{}{
-			"order_uuid":      order.UUID,
-			"rider_id":        order.RiderID,
-			"pickup_lat":      order.PickupLat,
-			"pickup_lon":      order.PickupLon,
-			"dropoff_address": order.DropoffAddress,
-			"fare_amount":     order.FareAmount,
-			"vehicle_type":    order.VehicleType,
-		}
-		_ = h.rmq.Publish(c.Request.Context(), broker.EventOrderCreated, payload)
+		_ = h.rmq.Publish(c.Request.Context(), broker.EventOrderCreated, dispatchPayload)
+	} else if h.dispatch != nil {
+		go h.dispatch(dispatchPayload)
 	}
 
 	// Biaya layanan pada quote dihitung dari tarif sebelum promo; yang benar
@@ -542,17 +553,23 @@ func (h *OrderHandler) RejectOrder(c *gin.Context) {
 	// Cari kandidat berikutnya. Event yang sama dengan saat order dibuat dipakai
 	// ulang karena worker sudah menyaring driver yang pernah ditawari, sehingga
 	// pengulangan tidak mengganggu orang yang sama dua kali.
+	dispatchPayload := map[string]interface{}{
+		"order_uuid":      order.UUID,
+		"rider_id":        order.RiderID,
+		"pickup_lat":      order.PickupLat,
+		"pickup_lon":      order.PickupLon,
+		"pickup_address":  order.PickupAddress,
+		"dropoff_lat":     order.DropoffLat,
+		"dropoff_lon":     order.DropoffLon,
+		"dropoff_address": order.DropoffAddress,
+		"distance_km":     order.DistanceKm,
+		"fare_amount":     order.FareAmount,
+		"vehicle_type":    order.VehicleType,
+	}
 	if h.rmq != nil {
-		payload := map[string]interface{}{
-			"order_uuid":      order.UUID,
-			"rider_id":        order.RiderID,
-			"pickup_lat":      order.PickupLat,
-			"pickup_lon":      order.PickupLon,
-			"dropoff_address": order.DropoffAddress,
-			"fare_amount":     order.FareAmount,
-			"vehicle_type":    order.VehicleType,
-		}
-		_ = h.rmq.Publish(c.Request.Context(), broker.EventOrderCreated, payload)
+		_ = h.rmq.Publish(c.Request.Context(), broker.EventOrderCreated, dispatchPayload)
+	} else if h.dispatch != nil {
+		go h.dispatch(dispatchPayload)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

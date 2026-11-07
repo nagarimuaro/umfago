@@ -270,6 +270,12 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     })();
     const unsub = DriverWebSocketService.addListener((payload) => {
+      if (payload.type === 'ws_connected') {
+        if (isOnlineRef.current) {
+          DriverApiService.setDriverStatus('online');
+        }
+        return;
+      }
       if (payload.type === 'incoming_order' || payload.type === 'order_offered') {
         const orderUuid = payload.order_uuid || payload.order?.uuid || `ord-${Date.now()}`;
         const fare = payload.fare_amount || payload.order?.fare || 24000;

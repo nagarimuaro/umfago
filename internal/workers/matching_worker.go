@@ -21,7 +21,11 @@ type OrderCreatedPayload struct {
 	RiderID        uint    `json:"rider_id"`
 	PickupLat      float64 `json:"pickup_lat"`
 	PickupLon      float64 `json:"pickup_lon"`
+	PickupAddress  string  `json:"pickup_address"`
+	DropoffLat     float64 `json:"dropoff_lat"`
+	DropoffLon     float64 `json:"dropoff_lon"`
 	DropoffAddress string  `json:"dropoff_address"`
+	DistanceKm     float64 `json:"distance_km"`
 	FareAmount     float64 `json:"fare_amount"`
 	VehicleType    string  `json:"vehicle_type"`
 }
@@ -86,7 +90,7 @@ func (w *MatchingWorker) handleOrderCreated(event broker.Event) {
 func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPayload) {
 	log.Printf("[MatchingWorker] Processing order %s for rider %d", payload.OrderUUID, payload.RiderID)
 
-	if w.locRepo == nil {
+	if w.locRepo == nil && w.hub == nil {
 		log.Printf("[MatchingWorker] Location repository unavailable")
 		return
 	}
@@ -102,12 +106,18 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 	}
 
 	// 1. Cari driver terdekat dari titik pickup menggunakan Redis GEOSEARCH.
-	// Diambil lebih banyak dari yang dibutuhkan karena sebagian akan tersaring
-	// oleh pengecekan jenis kendaraan dan status akun di bawah.
-	nearby, err := w.locRepo.FindNearestDrivers(ctx, payload.PickupLat, payload.PickupLon, radius, maxCandidates*3)
-	if err != nil {
-		log.Printf("[MatchingWorker] GeoSearch failed: %v", err)
-		return
+	// Bila Redis tidak menemukan kandidat dalam radius (atau Redis mati),
+	// fallback ke daftar driver yang sedang terhubung aktif di WebSocket Hub.
+	var nearby []uint
+	if w.locRepo != nil {
+		var err error
+		nearby, err = w.locRepo.FindNearestDrivers(ctx, payload.PickupLat, payload.PickupLon, radius, maxCandidates*3)
+		if err != nil {
+			log.Printf("[MatchingWorker] GeoSearch failed: %v", err)
+		}
+	}
+	if len(nearby) == 0 && w.hub != nil {
+		nearby = w.hub.OnlineDriverIDs()
 	}
 
 	candidates := w.filterEligible(w.excludeOffered(payload.OrderUUID, nearby), payload.VehicleType, maxCandidates)
@@ -161,7 +171,11 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 		"order_uuid":      payload.OrderUUID,
 		"pickup_lat":      payload.PickupLat,
 		"pickup_lon":      payload.PickupLon,
+		"pickup_address":  payload.PickupAddress,
+		"dropoff_lat":     payload.DropoffLat,
+		"dropoff_lon":     payload.DropoffLon,
 		"dropoff_address": payload.DropoffAddress,
+		"distance_km":     payload.DistanceKm,
 		"fare_amount":     payload.FareAmount,
 		"vehicle_type":    payload.VehicleType,
 		"expires_at":      expiresAt,

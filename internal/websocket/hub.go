@@ -67,23 +67,20 @@ func (c *Client) IsDriver() bool {
 // Hub — pusat kendali semua koneksi WebSocket aktif
 type Hub struct {
 	mu         sync.RWMutex
-	clients    map[uint]*Client // key: user_id
+	clients    map[uint]map[*Client]struct{} // key: user_id -> set koneksi aktif
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
 	done       chan struct{}
 	closeOnce  sync.Once
 
-	// OnDisconnect dipanggil setiap kali sebuah koneksi benar-benar lepas.
-	// Server memakainya untuk memadamkan status online driver, sehingga driver
-	// yang menutup aplikasi berhenti ditawari order tanpa harus menunggu sapuan
-	// berkala. Boleh nil bila tidak ada yang perlu diberi tahu.
+	// OnDisconnect dipanggil setiap kali koneksi terakhir milik seorang user lepas.
 	OnDisconnect func(userID uint, role string)
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[uint]*Client),
+		clients:    make(map[uint]map[*Client]struct{}),
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client, 16),
 		unregister: make(chan *Client, 16),
@@ -126,8 +123,10 @@ func (h *Hub) Close() {
 		close(h.done)
 
 		h.mu.Lock()
-		for id, client := range h.clients {
-			client.closeSend()
+		for id, conns := range h.clients {
+			for client := range conns {
+				client.closeSend()
+			}
 			delete(h.clients, id)
 		}
 		h.mu.Unlock()
@@ -143,50 +142,45 @@ func (h *Hub) Run() {
 
 		case client := <-h.register:
 			h.mu.Lock()
-			// Satu user hanya boleh punya satu koneksi. Koneksi lama ditutup
-			// agar login di HP baru tidak menyisakan koneksi menganggur yang
-			// tetap menerima pesan.
-			if existing, ok := h.clients[client.ID]; ok && existing != client {
-				existing.closeSend()
-				log.Printf("[WS Hub] Replacing existing connection for user_id=%d", client.ID)
+			if h.clients[client.ID] == nil {
+				h.clients[client.ID] = make(map[*Client]struct{})
 			}
-			h.clients[client.ID] = client
+			h.clients[client.ID][client] = struct{}{}
 			h.mu.Unlock()
 			log.Printf("[WS Hub] Client connected: user_id=%d role=%s", client.ID, client.Role)
 
 		case client := <-h.unregister:
 			h.mu.Lock()
-			// Hanya hapus bila koneksi yang terdaftar memang koneksi ini.
-			// Tanpa pengecekan ini, koneksi lama yang baru terputus akan
-			// menghapus koneksi baru milik user yang sama.
-			removed := false
-			if current, ok := h.clients[client.ID]; ok && current == client {
-				delete(h.clients, client.ID)
-				removed = true
+			lastDisconnected := false
+			if conns, ok := h.clients[client.ID]; ok {
+				if _, exists := conns[client]; exists {
+					delete(conns, client)
+					if len(conns) == 0 {
+						delete(h.clients, client.ID)
+						lastDisconnected = true
+					}
+				}
 			}
 			h.mu.Unlock()
 			client.closeSend()
 			log.Printf("[WS Hub] Client disconnected: user_id=%d", client.ID)
 
-			// Callback dijalankan setelah lock dilepas, di goroutine terpisah:
-			// ia menyentuh database, dan hub tidak boleh berhenti melayani
-			// koneksi lain selama itu. Hanya dipanggil bila koneksi ini memang
-			// koneksi yang sedang terdaftar — koneksi lama yang tergantikan
-			// tidak boleh memadamkan status user yang sudah tersambung lagi.
-			if removed && h.OnDisconnect != nil {
+			if lastDisconnected && h.OnDisconnect != nil {
 				go h.OnDisconnect(client.ID, client.Role)
 			}
 
 		case message := <-h.broadcast:
-			// Lock penuh, bukan RLock: cabang ini menghapus entri dari map bila
-			// buffer klien penuh, dan menulis map di bawah RLock adalah data race.
 			h.mu.Lock()
-			for id, client := range h.clients {
-				select {
-				case client.Send <- message:
-				default:
-					// Buffer penuh — klien tidak mengikuti, putuskan koneksi
-					client.closeSend()
+			for id, conns := range h.clients {
+				for client := range conns {
+					select {
+					case client.Send <- message:
+					default:
+						client.closeSend()
+						delete(conns, client)
+					}
+				}
+				if len(conns) == 0 {
 					delete(h.clients, id)
 				}
 			}
@@ -195,7 +189,7 @@ func (h *Hub) Run() {
 	}
 }
 
-// SendToUser — kirim pesan ke satu user spesifik (by user_id)
+// SendToUser — kirim pesan ke satu user spesifik (ke semua sesi aktif user tersebut)
 func (h *Hub) SendToUser(userID uint, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -204,25 +198,29 @@ func (h *Hub) SendToUser(userID uint, msg Message) {
 	}
 
 	h.mu.RLock()
-	client, ok := h.clients[userID]
-	h.mu.RUnlock()
-
-	if !ok {
+	conns, ok := h.clients[userID]
+	if !ok || len(conns) == 0 {
+		h.mu.RUnlock()
 		return
 	}
+	targets := make([]*Client, 0, len(conns))
+	for c := range conns {
+		targets = append(targets, c)
+	}
+	h.mu.RUnlock()
 
-	// Pengiriman dilindungi recover karena channel bisa tertutup oleh Run
-	// tepat setelah lock di atas dilepas.
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[WS Hub] Send to closed channel for user_id=%d", userID)
 		}
 	}()
 
-	select {
-	case client.Send <- data:
-	default:
-		log.Printf("[WS Hub] Buffer full for user_id=%d, dropping message", userID)
+	for _, client := range targets {
+		select {
+		case client.Send <- data:
+		default:
+			log.Printf("[WS Hub] Buffer full for user_id=%d, dropping message", userID)
+		}
 	}
 }
 
@@ -247,9 +245,11 @@ func (h *Hub) sendToMatching(msg Message, match func(*Client) bool) {
 
 	h.mu.RLock()
 	targets := make([]*Client, 0, len(h.clients))
-	for _, client := range h.clients {
-		if match(client) {
-			targets = append(targets, client)
+	for _, conns := range h.clients {
+		for client := range conns {
+			if match(client) {
+				targets = append(targets, client)
+			}
 		}
 	}
 	h.mu.RUnlock()
@@ -274,9 +274,12 @@ func (h *Hub) OnlineDriverIDs() []uint {
 	defer h.mu.RUnlock()
 
 	ids := make([]uint, 0, len(h.clients))
-	for id, client := range h.clients {
-		if client.IsDriver() {
-			ids = append(ids, id)
+	for id, conns := range h.clients {
+		for client := range conns {
+			if client.IsDriver() {
+				ids = append(ids, id)
+				break
+			}
 		}
 	}
 	return ids
