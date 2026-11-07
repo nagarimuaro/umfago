@@ -8,7 +8,7 @@ import { useDriver } from '../../hooks/use-driver';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { driver } = useDriver();
+  const { driver, logoutDriver } = useDriver();
 
   const handleWithdraw = () => {
     Alert.alert(
@@ -22,10 +22,8 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Keluar Aplikasi', 'Apakah Anda yakin ingin keluar dari akun driver?', [
-      { text: 'Batal', style: 'cancel' },
-      { text: 'Keluar', style: 'destructive', onPress: () => Alert.alert('Keluar', 'Sesi Anda telah diakhiri.') },
-    ]);
+    logoutDriver();
+    router.replace('/auth/login');
   };
 
   return (
@@ -120,6 +118,22 @@ export default function ProfileScreen() {
             <View style={styles.menuTextGroup}>
               <Text style={styles.menuTitle}>Pengaturan Aplikasi</Text>
               <Text style={styles.menuSubtitle}>Navigasi Peta, Auto-Accept, Notifikasi</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {/* Switch Account / Login & Register */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push('/auth/login')}
+            style={styles.menuItem}
+          >
+            <View style={styles.menuIconCircle}>
+              <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.menuTextGroup}>
+              <Text style={styles.menuTitle}>Masuk / Daftar Akun Mitra</Text>
+              <Text style={styles.menuSubtitle}>Beralih akun atau daftar Mitra Motor & Mobil baru</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </TouchableOpacity>

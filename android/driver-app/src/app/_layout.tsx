@@ -18,6 +18,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+          <Stack.Screen name="auth/register" options={{ headerShown: false }} />
           <Stack.Screen name="order/[id]" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           <Stack.Screen name="history/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="profile/vehicle" options={{ headerShown: false }} />

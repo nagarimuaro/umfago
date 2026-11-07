@@ -10,6 +10,7 @@ import { getShortestNavigationRoute } from '../services/navigation-router';
 interface DriverContextType {
   driver: DriverProfile;
   isOnline: boolean;
+  isAuthenticated: boolean;
   currentOrder: DriverOrder | null;
   incomingOrder: DriverOrder | null;
   orderHistory: DriverOrder[];
@@ -23,6 +24,15 @@ interface DriverContextType {
   cancelActiveOrder: (reason?: string) => Promise<void>;
   simulateIncomingOrder: () => void;
   updateDriverProfile: (updates: Partial<DriverProfile>) => void;
+  loginDriver: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  registerDriver: (
+    name: string,
+    email: string,
+    phone: string,
+    pass: string,
+    role?: 'driver_motorcycle' | 'driver_car'
+  ) => Promise<{ success: boolean; error?: string }>;
+  logoutDriver: () => void;
 }
 
 const DriverContext = createContext<DriverContextType | null>(null);
@@ -62,6 +72,7 @@ function densifyRoute(coords: Array<[number, number]>, stepMeters: number = 2.0)
 export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [driver, setDriver] = useState<DriverProfile>(INITIAL_DRIVER_PROFILE);
   const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [currentOrder, setCurrentOrder] = useState<DriverOrder | null>(null);
   const [incomingOrder, setIncomingOrder] = useState<DriverOrder | null>(null);
   const [orderHistory, setOrderHistory] = useState<DriverOrder[]>(MOCK_ORDERS_HISTORY);
@@ -553,11 +564,76 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setDriver((prev) => ({ ...prev, ...updates }));
   }, []);
 
+  const loginDriver = useCallback(async (email: string, pass: string) => {
+    const res = await DriverApiService.login(email, pass);
+    if (!res.success || !res.token) {
+      return { success: false, error: res.error || 'Email atau kata sandi tidak sesuai.' };
+    }
+
+    setIsAuthenticated(true);
+    setIsOnline(true);
+
+    if (res.user) {
+      const isCar = res.user.active_role === 'driver_car';
+      setDriver((prev) => ({
+        ...prev,
+        id: res.user.id || prev.id,
+        name: res.user.name ? res.user.name.replace(/\s*\(Driver.*\)/i, '') : prev.name,
+        email: res.user.email || email,
+        phone: res.user.phone || prev.phone,
+        balance: typeof res.user.balance === 'number' ? res.user.balance : prev.balance,
+        status: 'online',
+        vehicle: isCar
+          ? {
+              ...prev.vehicle,
+              type: 'car',
+              brand: 'Toyota',
+              model: 'Toyota Avanza Veloz',
+              plateNumber: 'BA 5678 AB',
+              color: 'Hitam Metalik',
+              year: 2023,
+            }
+          : prev.vehicle,
+      }));
+    }
+
+    DriverWebSocketService.connect(res.token);
+    await DriverApiService.setDriverStatus('online');
+    return { success: true };
+  }, []);
+
+  const registerDriver = useCallback(
+    async (
+      name: string,
+      email: string,
+      phone: string,
+      pass: string,
+      role: 'driver_motorcycle' | 'driver_car' = 'driver_motorcycle'
+    ) => {
+      const regRes = await DriverApiService.register(name, email, phone, pass, role);
+      if (!regRes.success) {
+        return { success: false, error: regRes.error || 'Registrasi akun driver gagal.' };
+      }
+      return await loginDriver(email, pass);
+    },
+    [loginDriver]
+  );
+
+  const logoutDriver = useCallback(() => {
+    DriverWebSocketService.disconnect();
+    DriverApiService.setAuthToken(null);
+    setIsOnline(false);
+    setIsAuthenticated(false);
+    setCurrentOrder(null);
+    setIncomingOrder(null);
+  }, []);
+
   return (
     <DriverContext.Provider
       value={{
         driver,
         isOnline,
+        isAuthenticated,
         currentOrder,
         incomingOrder,
         orderHistory,
@@ -571,6 +647,9 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         cancelActiveOrder,
         simulateIncomingOrder,
         updateDriverProfile,
+        loginDriver,
+        registerDriver,
+        logoutDriver,
       }}
     >
       {children}
