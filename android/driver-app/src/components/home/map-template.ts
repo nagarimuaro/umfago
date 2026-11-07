@@ -12,7 +12,13 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; overflow: hidden; background: #121517; }
+    html, body, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
+
+    /* Optional Driver Night Mode Filter for OSM Raster Tiles */
+    body.night-mode #map { background: #121517; }
+    body.night-mode .maplibregl-canvas-container canvas {
+      filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
+    }
     
     /* Driver Vehicle Marker */
     .driver-marker {
@@ -140,30 +146,29 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
   }
 
-  // MapLibre GL with CartoDB Dark Matter (OpenStreetMap raster tiles)
+  // MapLibre GL with OpenStreetMap raster tiles (identical to mobile-app, no API key required)
   const map = new maplibregl.Map({
     container: 'map',
     style: {
       version: 8,
       sources: {
-        osm_dark: {
+        osm: {
           type: 'raster',
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
+          attribution: '&copy; OpenStreetMap',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-            'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
           ]
         }
       },
       layers: [
-        { id: 'osm_dark', type: 'raster', source: 'osm_dark', minzoom: 0, maxzoom: 19 }
+        { id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }
       ]
     },
     center: [${initialLon}, ${initialLat}],
-    zoom: 15.5,
+    zoom: 16,
     pitch: 0,
     attributionControl: false
   });
@@ -282,6 +287,14 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   window.zoomIn = function() { map.zoomIn(); };
   window.zoomOut = function() { map.zoomOut(); };
 
+  window.toggleNightMode = function(enabled) {
+    if (enabled) {
+      document.body.classList.add('night-mode');
+    } else {
+      document.body.classList.remove('night-mode');
+    }
+  };
+
   window.addEventListener('message', function(e) {
     try {
       var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -291,6 +304,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         window.recenter(data.lon, data.lat);
       } else if (data && data.type === 'PERSPECTIVE') {
         window.togglePerspective(data.lon, data.lat, data.heading);
+      } else if (data && data.type === 'TOGGLE_NIGHT') {
+        window.toggleNightMode(data.enabled);
       } else if (data && data.type === 'ZOOM_IN') {
         window.zoomIn();
       } else if (data && data.type === 'ZOOM_OUT') {

@@ -17,6 +17,7 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   const webViewRef = useRef<WebView<object>>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
+  const [isNightMode, setIsNightMode] = useState(false);
 
   const lat = currentLocation?.latitude ?? -6.1952;
   const lon = currentLocation?.longitude ?? 106.8231;
@@ -77,6 +78,12 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     webViewRef.current?.injectJavaScript(`window.togglePerspective(${lon}, ${lat}, ${heading}); true;`);
   };
 
+  const handleToggleNightMode = () => {
+    const next = !isNightMode;
+    setIsNightMode(next);
+    webViewRef.current?.injectJavaScript(`window.toggleNightMode(${next}); true;`);
+  };
+
   const handleZoomIn = () => {
     webViewRef.current?.injectJavaScript(`window.zoomIn(); true;`);
   };
@@ -117,6 +124,22 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
         >
           <Ionicons
             name={is3DMode ? 'navigate' : 'compass-outline'}
+            size={20}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+
+        {/* Day / Night Map Mode Toggle */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={handleToggleNightMode}
+          style={[
+            styles.controlBtn,
+            isNightMode && { backgroundColor: 'rgba(200, 255, 0, 0.2)', borderColor: colors.primary },
+          ]}
+        >
+          <Ionicons
+            name={isNightMode ? 'moon' : 'sunny-outline'}
             size={20}
             color={colors.primary}
           />
