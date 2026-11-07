@@ -1,8 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  Dimensions,
+  Animated,
+  PanResponder,
+  ScrollView,
+  SafeAreaView,
+  Platform,
+} from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { colors, formatRupiah, rounded, spacing } from '../../constants/theme';
 import { DriverOrder } from '../../types/order';
+import { SoundService } from '../../services/sound';
 
 interface IncomingOrderModalProps {
   order: DriverOrder | null;
@@ -10,17 +23,30 @@ interface IncomingOrderModalProps {
   onReject: () => void;
 }
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, onAccept, onReject }) => {
   const [timeLeft, setTimeLeft] = useState<number>(15);
+  const panY = useRef(new Animated.Value(0)).current;
 
+  // Sound & Countdown Timer
   useEffect(() => {
-    if (!order) return;
+    if (!order) {
+      SoundService.stopOrderAlert();
+      return;
+    }
+
+    // Play high-volume order dispatch alert sound
+    SoundService.playOrderAlert();
+
     setTimeLeft(order.expiresInSeconds || 15);
+    panY.setValue(0);
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          SoundService.stopOrderAlert();
           onReject();
           return 0;
         }
@@ -28,103 +54,236 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      SoundService.stopOrderAlert();
+    };
   }, [order, onReject]);
+
+  const handleAccept = () => {
+    SoundService.stopOrderAlert();
+    onAccept();
+  };
+
+  const handleReject = () => {
+    SoundService.stopOrderAlert();
+    onReject();
+  };
+
+  // PanResponder for Swipe Up & Down Gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 4,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          // Dragging down
+          panY.setValue(gestureState.dy);
+        } else {
+          // Dragging up with rubber-band resistance
+          panY.setValue(gestureState.dy * 0.2);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 140 || gestureState.vy > 0.6) {
+          // Swipe down to dismiss/reject
+          Animated.timing(panY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(() => {
+            handleReject();
+          });
+        } else {
+          // Snap back up
+          Animated.spring(panY, {
+            toValue: 0,
+            friction: 7,
+            tension: 40,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   if (!order) return null;
 
-  const progressPercent = Math.max(0, Math.min(100, (timeLeft / (order.expiresInSeconds || 15)) * 100));
+  const totalTime = order.expiresInSeconds || 15;
+  const progressPercent = Math.max(0, Math.min(100, (timeLeft / totalTime) * 100));
 
   return (
-    <Modal visible={!!order} transparent animationType="slide">
+    <Modal visible={!!order} transparent animationType="slide" statusBarTranslucent>
       <View style={styles.backdrop}>
-        <View style={styles.container}>
-          {/* Top Urgency Header & Countdown Bar */}
-          <View style={styles.header}>
-            <View style={styles.urgencyPill}>
-              <View style={styles.pulseDot} />
-              <Text style={styles.urgencyText}>ORDER MASUK • {timeLeft}s</Text>
-            </View>
-            <Text style={styles.orderCode}>{order.code}</Text>
-          </View>
-
-          {/* Linear Countdown Progress Bar */}
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
-
-          {/* Earnings Spotlight Card */}
-          <View style={styles.earningsCard}>
-            <View>
-              <Text style={styles.earningsLabel}>Pendapatan Bersih Driver</Text>
-              <Text style={styles.earningsAmount}>{formatRupiah(order.driverEarnings)}</Text>
-            </View>
-            <View style={styles.serviceBadge}>
-              <FontAwesome5
-                name={order.serviceType === 'food' ? 'utensils' : 'motorcycle'}
-                size={14}
-                color={colors.black}
-              />
-              <Text style={styles.serviceText}>
-                {order.serviceType === 'food' ? 'UmfaFood' : 'UmfaRide'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Route Details */}
-          <View style={styles.routeCard}>
-            {/* Pickup */}
-            <View style={styles.pointRow}>
-              <View style={styles.pickupDot} />
-              <View style={styles.pointTextGroup}>
-                <Text style={styles.pointCategory}>PENJEMPUTAN (1.2 km)</Text>
-                <Text style={styles.pointAddress} numberOfLines={1}>
-                  {order.pickup.address}
-                </Text>
-                {order.pickup.landmark && (
-                  <Text style={styles.pointLandmark}>{order.pickup.landmark}</Text>
-                )}
+        {/* Full Screen Animated Order Card */}
+        <Animated.View
+          style={[
+            styles.fullCard,
+            {
+              transform: [{ translateY: panY }],
+            },
+          ]}
+        >
+          <SafeAreaView style={styles.safeArea}>
+            {/* Top Drag & Swipe Header Handle */}
+            <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
+              <View style={styles.grabberPill} />
+              <View style={styles.swipeHintRow}>
+                <Ionicons name="swap-vertical" size={14} color={colors.primary} />
+                <Text style={styles.swipeHintText}>Geser ke bawah untuk menolak order</Text>
               </View>
             </View>
 
-            {/* Connecting Line */}
-            <View style={styles.connectingLine} />
+            {/* Top Status & Urgency Header */}
+            <View {...panResponder.panHandlers} style={styles.header}>
+              <View style={styles.urgencyPill}>
+                <View style={styles.pulseDot} />
+                <Text style={styles.urgencyText}>ORDER MASUK • {timeLeft} DETIK</Text>
+              </View>
+              <Text style={styles.orderCode}>{order.code}</Text>
+            </View>
 
-            {/* Destination */}
-            <View style={styles.pointRow}>
-              <View style={styles.dropoffDot} />
-              <View style={styles.pointTextGroup}>
-                <Text style={styles.pointCategory}>TUJUAN ({order.distanceKm} km)</Text>
-                <Text style={styles.pointAddress} numberOfLines={1}>
-                  {order.destination.address}
+            {/* Countdown Progress Bar */}
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+            </View>
+
+            {/* Scrollable Order Details Body */}
+            <ScrollView
+              style={styles.scrollBody}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+            >
+              {/* Earnings Spotlight Card */}
+              <View style={styles.earningsCard}>
+                <View>
+                  <Text style={styles.earningsLabel}>Pendapatan Bersih Driver</Text>
+                  <Text style={styles.earningsAmount}>{formatRupiah(order.driverEarnings)}</Text>
+                  <View style={styles.tripMetaPills}>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="speedometer-outline" size={12} color={colors.textSecondary} />
+                      <Text style={styles.metaPillText}>{order.distanceKm} km</Text>
+                    </View>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                      <Text style={styles.metaPillText}>± {order.estimatedDurationMinutes} mnt</Text>
+                    </View>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="card-outline" size={12} color={colors.primary} />
+                      <Text style={[styles.metaPillText, { color: colors.primary }]}>Non-Tunai</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.serviceBadge}>
+                  <FontAwesome5
+                    name={order.serviceType === 'food' ? 'utensils' : 'motorcycle'}
+                    size={16}
+                    color={colors.black}
+                  />
+                  <Text style={styles.serviceText}>
+                    {order.serviceType === 'food' ? 'UmfaFood' : 'UmfaRide'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Complete Route Section */}
+              <View style={styles.routeCard}>
+                {/* Pickup Point */}
+                <View style={styles.pointRow}>
+                  <View style={styles.pickupPinContainer}>
+                    <View style={styles.pickupDot} />
+                  </View>
+                  <View style={styles.pointTextGroup}>
+                    <Text style={styles.pointCategory}>TITIK JEMPUT (1.2 km dari Anda)</Text>
+                    <Text style={styles.pointAddress}>
+                      {order.pickup.address}
+                    </Text>
+                    {order.pickup.landmark && (
+                      <View style={styles.landmarkPill}>
+                        <Ionicons name="flag-outline" size={12} color={colors.primary} />
+                        <Text style={styles.landmarkText}>{order.pickup.landmark}</Text>
+                      </View>
+                    )}
+                    {order.pickup.notes && (
+                      <Text style={styles.noteText}>Catatan: "{order.pickup.notes}"</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Vertical Dotted Route Line */}
+                <View style={styles.routeDottedLineContainer}>
+                  <View style={styles.routeDottedLine} />
+                </View>
+
+                {/* Destination Point */}
+                <View style={styles.pointRow}>
+                  <View style={styles.dropoffPinContainer}>
+                    <View style={styles.dropoffDot} />
+                  </View>
+                  <View style={styles.pointTextGroup}>
+                    <Text style={styles.pointCategory}>DESTINASI TUJUAN ({order.distanceKm} km)</Text>
+                    <Text style={styles.pointAddress}>
+                      {order.destination.address}
+                    </Text>
+                    {order.destination.landmark && (
+                      <View style={styles.landmarkPill}>
+                        <Ionicons name="business-outline" size={12} color="#FF5252" />
+                        <Text style={[styles.landmarkText, { color: '#FF8A80' }]}>
+                          {order.destination.landmark}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* Customer Profile Box */}
+              <View style={styles.customerCard}>
+                <View style={styles.customerAvatar}>
+                  <Ionicons name="person" size={20} color={colors.onSurface} />
+                </View>
+                <View style={styles.customerInfo}>
+                  <Text style={styles.customerName}>{order.customer.name}</Text>
+                  <Text style={styles.customerRating}>⭐ {order.customer.rating} • Pelanggan Terverifikasi</Text>
+                </View>
+                <View style={styles.paymentBadge}>
+                  <Text style={styles.paymentBadgeText}>DOMPET</Text>
+                </View>
+              </View>
+
+              {/* Safety & Fare Guarantee Notice */}
+              <View style={styles.safetyBox}>
+                <Ionicons name="shield-checkmark" size={16} color={colors.primary} />
+                <Text style={styles.safetyText}>
+                  Tarif bersih driver dijamin 100% masuk ke dompet tanpa potongan tak terduga.
                 </Text>
               </View>
-            </View>
-          </View>
+            </ScrollView>
 
-          {/* Customer Info Snippet */}
-          <View style={styles.customerRow}>
-            <View style={styles.customerAvatar}>
-              <Ionicons name="person" size={16} color={colors.onSurface} />
-            </View>
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{order.customer.name}</Text>
-              <Text style={styles.customerMeta}>⭐ {order.customer.rating} • Pembayaran Non-Tunai</Text>
-            </View>
-          </View>
+            {/* Fixed Bottom Action Buttons */}
+            <View style={styles.actionsFooter}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handleReject}
+                style={styles.rejectBtn}
+              >
+                <Ionicons name="close" size={20} color="#FF8A80" />
+                <Text style={styles.rejectText}>Tolak Order</Text>
+              </TouchableOpacity>
 
-          {/* Action Buttons */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity activeOpacity={0.8} onPress={onReject} style={styles.rejectBtn}>
-              <Text style={styles.rejectText}>Tolak</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity activeOpacity={0.8} onPress={onAccept} style={styles.acceptBtn}>
-              <MaterialIcons name="check-circle" size={20} color={colors.black} />
-              <Text style={styles.acceptText}>TERIMA ORDER</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleAccept}
+                style={styles.acceptBtn}
+              >
+                <MaterialIcons name="check-circle" size={22} color={colors.black} />
+                <Text style={styles.acceptText}>TERIMA ORDER</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -133,32 +292,60 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
   },
-  container: {
-    backgroundColor: '#191A1A',
+  fullCard: {
+    flex: 1,
+    backgroundColor: '#141515',
     borderTopLeftRadius: rounded.lg,
     borderTopRightRadius: rounded.lg,
-    padding: spacing.lg,
-    borderTopWidth: 2,
+    borderTopWidth: 3,
     borderTopColor: colors.primary,
-    gap: spacing.md,
+  },
+  safeArea: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  dragHandleArea: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  grabberPill: {
+    width: 48,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#383A3A',
+  },
+  swipeHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  swipeHintText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   urgencyPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#273500',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 7,
+    backgroundColor: '#263400',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: rounded.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.primary,
   },
   pulseDot: {
@@ -171,17 +358,19 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   orderCode: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     fontFamily: 'monospace',
   },
   progressTrack: {
     height: 4,
-    backgroundColor: colors.surfaceHigh,
+    backgroundColor: '#262828',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -189,107 +378,175 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: colors.primary,
   },
+  scrollBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
+  },
   earningsCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2020',
-    borderRadius: rounded.md,
-    padding: spacing.md,
+    backgroundColor: '#1E2020',
+    borderRadius: rounded.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.outline,
+    borderColor: '#303232',
   },
   earningsLabel: {
     color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   earningsAmount: {
     color: colors.primary,
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: '900',
     letterSpacing: -0.5,
+    marginTop: 2,
+    marginBottom: 8,
   },
-  serviceBadge: {
+  tripMetaPills: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#131414',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
+  },
+  metaPillText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  serviceBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: rounded.full,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: rounded.md,
   },
   serviceText: {
     color: colors.black,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
   },
   routeCard: {
-    backgroundColor: '#131414',
-    borderRadius: rounded.md,
-    padding: spacing.md,
+    backgroundColor: '#1A1B1B',
+    borderRadius: rounded.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#232525',
+    borderColor: '#2D2F2F',
   },
   pointRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
   },
+  pickupPinContainer: {
+    width: 20,
+    alignItems: 'center',
+    marginTop: 3,
+  },
   pickupDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: colors.primary,
-    marginTop: 4,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  dropoffPinContainer: {
+    width: 20,
+    alignItems: 'center',
+    marginTop: 3,
   },
   dropoffDot: {
-    width: 10,
-    height: 10,
+    width: 12,
+    height: 12,
     borderRadius: 2,
     backgroundColor: '#FF5252',
-    marginTop: 4,
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
-  connectingLine: {
+  routeDottedLineContainer: {
+    width: 20,
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  routeDottedLine: {
     width: 2,
-    height: 20,
-    backgroundColor: colors.outlineVariant,
-    marginLeft: 4,
-    marginVertical: 2,
+    height: 24,
+    backgroundColor: '#383B3B',
   },
   pointTextGroup: {
     flex: 1,
   },
   pointCategory: {
     color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   pointAddress: {
     color: colors.white,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginTop: 2,
   },
-  pointLandmark: {
+  landmarkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(200, 255, 0, 0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    marginTop: 6,
+  },
+  landmarkText: {
     color: colors.primary,
     fontSize: 11,
-    fontStyle: 'italic',
+    fontWeight: '700',
   },
-  customerRow: {
+  noteText: {
+    color: '#E0E0E0',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 5,
+    backgroundColor: '#202222',
+    padding: 6,
+    borderRadius: rounded.sm,
+  },
+  customerCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: '#1F2020',
-    borderRadius: rounded.sm,
-    padding: spacing.sm,
+    backgroundColor: '#1E2020',
+    borderRadius: rounded.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#2F3131',
   },
   customerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surfaceHigh,
     alignItems: 'center',
     justifyContent: 'center',
@@ -299,42 +556,84 @@ const styles = StyleSheet.create({
   },
   customerName: {
     color: colors.white,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
-  customerMeta: {
+  customerRating: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
-  actionsRow: {
+  paymentBadge: {
+    backgroundColor: '#263400',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  paymentBadgeText: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  safetyBox: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(200, 255, 0, 0.08)',
+    borderRadius: rounded.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(200, 255, 0, 0.25)',
+  },
+  safetyText: {
+    color: '#D8FFAA',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 16,
+  },
+  actionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
-    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 24 : spacing.lg,
+    backgroundColor: '#141515',
+    borderTopWidth: 1,
+    borderTopColor: '#262828',
   },
   rejectBtn: {
     flex: 1,
-    backgroundColor: colors.surfaceLow,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    paddingVertical: 15,
-    borderRadius: rounded.full,
+    height: 54,
+    borderRadius: rounded.md,
+    backgroundColor: '#2B1B1B',
+    borderWidth: 1.5,
+    borderColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   rejectText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#FF8A80',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   acceptBtn: {
     flex: 2,
+    height: 54,
+    borderRadius: rounded.md,
     backgroundColor: colors.primary,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     gap: 8,
-    paddingVertical: 15,
-    borderRadius: rounded.full,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -345,7 +644,6 @@ const styles = StyleSheet.create({
     color: colors.black,
     fontSize: 15,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
 });
-
