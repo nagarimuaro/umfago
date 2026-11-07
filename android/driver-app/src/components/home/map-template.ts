@@ -1,3 +1,5 @@
+import { DRIVER_ICON_DATA_URI } from '../../constants/driver-asset';
+
 /**
  * Shared HTML Generator for MapLibre GL JS OpenStreetMap view.
  * Aligned with mobile-app's MapLibreOSMView and tailored for Driver Cockpit needs.
@@ -22,8 +24,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     
     /* Driver Vehicle Marker */
     .driver-marker {
-      width: 48px;
-      height: 48px;
+      width: 52px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -37,33 +39,39 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       background: rgba(200, 255, 0, 0.25);
       border: 1.5px solid #C8FF00;
       animation: pulse 2.2s infinite ease-out;
+      pointer-events: none;
     }
     @keyframes pulse {
       0% { transform: scale(0.6); opacity: 0.9; }
-      100% { transform: scale(1.8); opacity: 0; }
+      100% { transform: scale(1.9); opacity: 0; }
     }
     .driver-pin {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: #1B1C14;
-      border: 2.5px solid #C8FF00;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.65);
+      width: 46px;
+      height: 46px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      position: relative;
       z-index: 2;
-      transition: transform 0.2s ease;
+      transition: transform 0.25s ease-out;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+    }
+    .driver-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
     }
     .driver-arrow {
       position: absolute;
-      top: -7px;
+      top: -6px;
       width: 0;
       height: 0;
       border-left: 5px solid transparent;
       border-right: 5px solid transparent;
-      border-bottom: 9px solid #C8FF00;
+      border-bottom: 8px solid #C8FF00;
+      filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
     }
     
     /* Surge Hotspot Area Markers */
@@ -173,10 +181,10 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     attributionControl: false
   });
 
-  // Driver Marker Element
+  // Driver Marker Element with custom motorcycle vehicle icon
   const driverEl = document.createElement('div');
   driverEl.className = 'driver-marker';
-  driverEl.innerHTML = '<div class="driver-pulse"></div><div class="driver-pin"><div class="driver-arrow"></div>🏍️</div>';
+  driverEl.innerHTML = '<div class="driver-pulse"></div><div class="driver-pin"><div class="driver-arrow"></div><img src="' + ${JSON.stringify(DRIVER_ICON_DATA_URI)} + '" class="driver-img" alt="Driver" /></div>';
   const driverMarker = new maplibregl.Marker({ element: driverEl, rotationAlignment: 'map' })
     .setLngLat([${initialLon}, ${initialLat}])
     .addTo(map);
