@@ -55,5 +55,6 @@ export interface DriverOrder {
   restaurantName?: string;
   createdAt: string;
   expiresInSeconds?: number;
+  routeCoordinates?: Array<[number, number]>;
 }
 

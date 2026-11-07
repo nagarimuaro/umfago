@@ -23,6 +23,7 @@ const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 
 /**
  * Hitung rute navigasi dari titik penjemputan ke tujuan.
+ * Mengambil rute dengan JARAK TERDEKAT (shortest distance) di jalan raya riil.
  * @param start [lat, lon]
  * @param end [lat, lon]
  * @param costing 'motorcycle' | 'auto' (mobil)
@@ -32,6 +33,39 @@ export async function getValhallaRoute(
   end: [number, number],
   costing: 'motorcycle' | 'auto' = 'motorcycle'
 ): Promise<ValhallaRouteResult> {
+  // 1. Prioritas Utama: OSRM Routing Engine (Cari alternatif rute jarak terdekat)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&alternatives=true&continue_straight=true`;
+    const oRes = await fetch(osrmUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (oRes.ok) {
+      const oData = await oRes.json();
+      if (oData.code === 'Ok' && Array.isArray(oData.routes) && oData.routes.length > 0) {
+        // Pilih rute dengan jarak TERDEKAT (shortest distance)
+        const sorted = oData.routes.sort((a: any, b: any) => a.distance - b.distance);
+        const shortest = sorted[0];
+
+        return {
+          distanceKm: Math.max(0.2, Math.round((shortest.distance / 1000) * 10) / 10),
+          durationMinutes: Math.max(1, Math.round(shortest.duration / 60)),
+          coordinates: shortest.geometry.coordinates as Array<[number, number]>,
+          maneuvers: [
+            {
+              instruction: shortest.legs?.[0]?.summary || 'Ikuti jalur terdekat menuju titik tujuan',
+              distanceKm: Math.round((shortest.distance / 1000) * 10) / 10,
+              timeSeconds: Math.round(shortest.duration),
+            },
+          ],
+        };
+      }
+    }
+  } catch {
+    // Lanjut fallback ke Valhalla
+  }
+
   const payload = {
     locations: [
       { lat: start[0], lon: start[1], type: 'break' },

@@ -5,6 +5,7 @@ import { DriverOrder, DriverOrderStep } from '../types/order';
 import { INITIAL_DRIVER_PROFILE, SURGE_AREAS, MOCK_ORDERS_HISTORY, SAMPLE_INCOMING_ORDER } from '../constants/mock-data';
 import { DriverApiService } from '../services/api';
 import { DriverWebSocketService } from '../services/websocket';
+import { getShortestNavigationRoute } from '../services/navigation-router';
 
 interface DriverContextType {
   driver: DriverProfile;
@@ -14,6 +15,7 @@ interface DriverContextType {
   orderHistory: DriverOrder[];
   surgeAreas: SurgeArea[];
   currentLocation: { latitude: number; longitude: number; heading: number } | null;
+  activeRoute: Array<[number, number]> | null;
   toggleOnline: () => Promise<void>;
   acceptIncomingOrder: () => Promise<void>;
   rejectIncomingOrder: () => void;
@@ -45,6 +47,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [incomingOrder, setIncomingOrder] = useState<DriverOrder | null>(null);
   const [orderHistory, setOrderHistory] = useState<DriverOrder[]>(MOCK_ORDERS_HISTORY);
   const [surgeAreas] = useState<SurgeArea[]>(SURGE_AREAS);
+  const [activeRoute, setActiveRoute] = useState<Array<[number, number]> | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; heading: number } | null>({
     latitude: -6.1952,
     longitude: 106.8231,
@@ -54,7 +57,8 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const locationWatchSub = useRef<Location.LocationSubscription | null>(null);
   const headingWatchSub = useRef<Location.LocationSubscription | null>(null);
   const tripSimTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tripProgressRef = useRef<number>(0);
+  const routePointsRef = useRef<Array<[number, number]>>([]);
+  const routeIndexRef = useRef<number>(0);
 
   // Initialize GPS & Compass Tracking
   useEffect(() => {
@@ -213,10 +217,12 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIncomingOrder(null);
   }, []);
 
-  // Simulasi pergerakan driver sepanjang rute saat jemput (heading_to_pickup) maupun antar (in_trip)
+  // Navigasi jalan raya riil (jarak terdekat via OSRM / Valhalla)
+  // Driver bergerak mengikuti kontur jalan, belokan, dan tikungan riil
   useEffect(() => {
+    let isCancelled = false;
+
     if (currentOrder?.step === 'heading_to_pickup') {
-      tripProgressRef.current = 0;
       const pLat = currentOrder.pickup.latitude;
       const pLon = currentOrder.pickup.longitude;
       const startLat = currentLocation?.latitude && Math.abs(currentLocation.latitude - pLat) > 0.001
@@ -225,94 +231,153 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const startLon = currentLocation?.longitude && Math.abs(currentLocation.longitude - pLon) > 0.001
         ? currentLocation.longitude
         : pLon - 0.006;
-      const heading = Math.round(calculateBearing(startLat, startLon, pLat, pLon));
+      const mode = currentOrder.serviceType === 'car' ? 'car' : 'motorcycle';
 
-      setCurrentLocation({
-        latitude: startLat,
-        longitude: startLon,
-        heading,
+      getShortestNavigationRoute([startLat, startLon], [pLat, pLon], mode).then((res) => {
+        if (isCancelled) return;
+        const coords = res.coordinates && res.coordinates.length > 1
+          ? res.coordinates
+          : ([[startLon, startLat], [pLon, pLat]] as Array<[number, number]>);
+
+        routePointsRef.current = coords;
+        routeIndexRef.current = 0;
+        setActiveRoute(coords);
+
+        // Update estimasi jarak riil terdekat dan waktu tempuh
+        setCurrentOrder((prev) => (prev ? {
+          ...prev,
+          distanceKm: res.distanceKm,
+          estimatedDurationMinutes: res.durationMinutes,
+          routeCoordinates: coords,
+        } : null));
+
+        const first = coords[0];
+        const next = coords[1] || coords[0];
+        const initialHeading = Math.round(calculateBearing(first[1], first[0], next[1], next[0]));
+
+        setCurrentLocation({
+          latitude: first[1],
+          longitude: first[0],
+          heading: initialHeading,
+        });
+
+        let lastWsSend = 0;
+        if (tripSimTimer.current) clearInterval(tripSimTimer.current);
+
+        tripSimTimer.current = setInterval(() => {
+          if (routeIndexRef.current < routePointsRef.current.length - 1) {
+            routeIndexRef.current += 1;
+            const idx = routeIndexRef.current;
+            const curPt = routePointsRef.current[idx];
+            const nextPt = routePointsRef.current[Math.min(routePointsRef.current.length - 1, idx + 1)];
+            const stepHeading = Math.round(calculateBearing(curPt[1], curPt[0], nextPt[1], nextPt[0]));
+
+            setCurrentLocation({
+              latitude: curPt[1],
+              longitude: curPt[0],
+              heading: stepHeading,
+            });
+
+            // Jalur di depan driver yang belum dilewati
+            const remaining = routePointsRef.current.slice(idx);
+            setActiveRoute(remaining);
+
+            const now = Date.now();
+            if (now - lastWsSend > 1000) {
+              lastWsSend = now;
+              DriverWebSocketService.sendLocation(curPt[1], curPt[0], stepHeading, 30);
+            }
+          } else {
+            // Sampai di titik penjemputan: stop pergerakan agar tidak jalan terus
+            if (tripSimTimer.current) {
+              clearInterval(tripSimTimer.current);
+              tripSimTimer.current = null;
+            }
+            setCurrentLocation({
+              latitude: pLat,
+              longitude: pLon,
+              heading: 0,
+            });
+            setActiveRoute([[pLon, pLat]]);
+          }
+        }, 110);
       });
-
-      let lastWsSend = 0;
-      tripSimTimer.current = setInterval(() => {
-        if (tripProgressRef.current < 0.98) {
-          tripProgressRef.current = Math.min(0.98, tripProgressRef.current + 0.002);
-          const prog = tripProgressRef.current;
-          const curLat = startLat + (pLat - startLat) * prog;
-          const curLon = startLon + (pLon - startLon) * prog;
-
-          setCurrentLocation({
-            latitude: curLat,
-            longitude: curLon,
-            heading,
-          });
-
-          const now = Date.now();
-          if (now - lastWsSend > 1000) {
-            lastWsSend = now;
-            DriverWebSocketService.sendLocation(curLat, curLon, heading, 30);
-          }
-        } else {
-          // Sampai di titik penjemputan: stop pergerakan agar tidak jalan terus
-          if (tripSimTimer.current) {
-            clearInterval(tripSimTimer.current);
-            tripSimTimer.current = null;
-          }
-          setCurrentLocation({
-            latitude: pLat,
-            longitude: pLon,
-            heading,
-          });
-        }
-      }, 80);
     } else if (currentOrder?.step === 'in_trip') {
-      tripProgressRef.current = 0;
       const pLat = currentOrder.pickup.latitude;
       const pLon = currentOrder.pickup.longitude;
       const dLat = currentOrder.destination.latitude;
       const dLon = currentOrder.destination.longitude;
-      const heading = Math.round(calculateBearing(pLat, pLon, dLat, dLon));
+      const mode = currentOrder.serviceType === 'car' ? 'car' : 'motorcycle';
 
-      // Pas mulai perjalanan: posisi driver pas di lokasi penjemputan dan menghadap tujuan
-      setCurrentLocation({
-        latitude: pLat,
-        longitude: pLon,
-        heading,
+      getShortestNavigationRoute([pLat, pLon], [dLat, dLon], mode).then((res) => {
+        if (isCancelled) return;
+        const coords = res.coordinates && res.coordinates.length > 1
+          ? res.coordinates
+          : ([[pLon, pLat], [dLon, dLat]] as Array<[number, number]>);
+
+        routePointsRef.current = coords;
+        routeIndexRef.current = 0;
+        setActiveRoute(coords);
+
+        setCurrentOrder((prev) => (prev ? {
+          ...prev,
+          distanceKm: res.distanceKm,
+          estimatedDurationMinutes: res.durationMinutes,
+          routeCoordinates: coords,
+        } : null));
+
+        const first = coords[0];
+        const next = coords[1] || coords[0];
+        const initialHeading = Math.round(calculateBearing(first[1], first[0], next[1], next[0]));
+
+        setCurrentLocation({
+          latitude: first[1],
+          longitude: first[0],
+          heading: initialHeading,
+        });
+
+        let lastWsSend = 0;
+        if (tripSimTimer.current) clearInterval(tripSimTimer.current);
+
+        tripSimTimer.current = setInterval(() => {
+          if (routeIndexRef.current < routePointsRef.current.length - 1) {
+            routeIndexRef.current += 1;
+            const idx = routeIndexRef.current;
+            const curPt = routePointsRef.current[idx];
+            const nextPt = routePointsRef.current[Math.min(routePointsRef.current.length - 1, idx + 1)];
+            const stepHeading = Math.round(calculateBearing(curPt[1], curPt[0], nextPt[1], nextPt[0]));
+
+            setCurrentLocation({
+              latitude: curPt[1],
+              longitude: curPt[0],
+              heading: stepHeading,
+            });
+
+            const remaining = routePointsRef.current.slice(idx);
+            setActiveRoute(remaining);
+
+            const now = Date.now();
+            if (now - lastWsSend > 1000) {
+              lastWsSend = now;
+              DriverWebSocketService.sendLocation(curPt[1], curPt[0], stepHeading, 28);
+            }
+          } else {
+            // Sampai di tujuan: stop pergerakan agar tidak jalan terus
+            if (tripSimTimer.current) {
+              clearInterval(tripSimTimer.current);
+              tripSimTimer.current = null;
+            }
+            setCurrentLocation({
+              latitude: dLat,
+              longitude: dLon,
+              heading: 0,
+            });
+            setActiveRoute([[dLon, dLat]]);
+          }
+        }, 110);
       });
-
-      let lastWsSend = 0;
-      tripSimTimer.current = setInterval(() => {
-        if (tripProgressRef.current < 0.98) {
-          tripProgressRef.current = Math.min(0.98, tripProgressRef.current + 0.0016);
-          const prog = tripProgressRef.current;
-          const curLat = pLat + (dLat - pLat) * prog;
-          const curLon = pLon + (dLon - pLon) * prog;
-
-          setCurrentLocation({
-            latitude: curLat,
-            longitude: curLon,
-            heading,
-          });
-
-          const now = Date.now();
-          if (now - lastWsSend > 1000) {
-            lastWsSend = now;
-            DriverWebSocketService.sendLocation(curLat, curLon, heading, 28);
-          }
-        } else {
-          // Sampai di tujuan: stop pergerakan agar tidak jalan terus
-          if (tripSimTimer.current) {
-            clearInterval(tripSimTimer.current);
-            tripSimTimer.current = null;
-          }
-          setCurrentLocation({
-            latitude: dLat,
-            longitude: dLon,
-            heading,
-          });
-        }
-      }, 80);
     } else {
+      setActiveRoute(null);
       if (tripSimTimer.current) {
         clearInterval(tripSimTimer.current);
         tripSimTimer.current = null;
@@ -320,6 +385,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     return () => {
+      isCancelled = true;
       if (tripSimTimer.current) {
         clearInterval(tripSimTimer.current);
         tripSimTimer.current = null;
@@ -444,6 +510,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         orderHistory,
         surgeAreas,
         currentLocation,
+        activeRoute,
         toggleOnline,
         acceptIncomingOrder,
         rejectIncomingOrder,

@@ -155,7 +155,9 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
                 ? `${currentOrder.distanceKm} km Menuju Alamat Tujuan`
                 : isArrivedAtPickup
                 ? 'Tiba di Penjemputan'
-                : '300 meter Menuju Titik Jemput'}
+                : currentOrder.distanceKm >= 1
+                ? `${currentOrder.distanceKm} km Menuju Titik Jemput`
+                : `${Math.round(currentOrder.distanceKm * 1000)} m Menuju Titik Jemput`}
             </Text>
             <Text style={styles.guidanceStreet} numberOfLines={1}>
               {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
