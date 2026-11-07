@@ -40,6 +40,25 @@ function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number
   return (brng + 360) % 360;
 }
 
+function densifyRoute(coords: Array<[number, number]>, stepMeters: number = 2.0): Array<[number, number]> {
+  if (!coords || coords.length < 2) return coords;
+  const result: Array<[number, number]> = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i];
+    const p1 = coords[i + 1];
+    const dLat = (p1[1] - p0[1]) * 111000;
+    const dLon = (p1[0] - p0[0]) * 111000 * Math.cos((p0[1] * Math.PI) / 180);
+    const dist = Math.hypot(dLat, dLon);
+    const steps = Math.max(1, Math.ceil(dist / stepMeters));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      result.push([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t]);
+    }
+  }
+  result.push(coords[coords.length - 1]);
+  return result;
+}
+
 export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [driver, setDriver] = useState<DriverProfile>(INITIAL_DRIVER_PROFILE);
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -225,30 +244,29 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentOrder?.step === 'heading_to_pickup') {
       const pLat = currentOrder.pickup.latitude;
       const pLon = currentOrder.pickup.longitude;
-      const startLat = currentLocation?.latitude && Math.abs(currentLocation.latitude - pLat) > 0.001
-        ? currentLocation.latitude
-        : pLat - 0.008;
-      const startLon = currentLocation?.longitude && Math.abs(currentLocation.longitude - pLon) > 0.001
-        ? currentLocation.longitude
-        : pLon - 0.006;
+      const isFarEnough = currentLocation?.latitude &&
+        Math.hypot(currentLocation.latitude - pLat, currentLocation.longitude - pLon) > 0.003;
+      const startLat = isFarEnough ? currentLocation.latitude : -6.2018;
+      const startLon = isFarEnough ? currentLocation.longitude : 106.8188;
       const mode = currentOrder.serviceType === 'car' ? 'car' : 'motorcycle';
 
       getShortestNavigationRoute([startLat, startLon], [pLat, pLon], mode).then((res) => {
         if (isCancelled) return;
-        const coords = res.coordinates && res.coordinates.length > 1
+        const rawCoords = res.coordinates && res.coordinates.length > 1
           ? res.coordinates
           : ([[startLon, startLat], [pLon, pLat]] as Array<[number, number]>);
+        const coords = densifyRoute(rawCoords, 2.0);
 
         routePointsRef.current = coords;
         routeIndexRef.current = 0;
-        setActiveRoute(coords);
+        setActiveRoute(rawCoords);
 
         // Update estimasi jarak riil terdekat dan waktu tempuh
         setCurrentOrder((prev) => (prev ? {
           ...prev,
           distanceKm: res.distanceKm,
           estimatedDurationMinutes: res.durationMinutes,
-          routeCoordinates: coords,
+          routeCoordinates: rawCoords,
         } : null));
 
         const first = coords[0];
@@ -278,9 +296,11 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               heading: stepHeading,
             });
 
-            // Jalur di depan driver yang belum dilewati
-            const remaining = routePointsRef.current.slice(idx);
-            setActiveRoute(remaining);
+            // Sinkronkan rute maju secara berkala
+            if (idx % 10 === 0 || idx >= routePointsRef.current.length - 5) {
+              const remaining = routePointsRef.current.slice(idx);
+              setActiveRoute(remaining);
+            }
 
             const now = Date.now();
             if (now - lastWsSend > 1000) {
@@ -300,7 +320,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
             setActiveRoute([[pLon, pLat]]);
           }
-        }, 110);
+        }, 90);
       });
     } else if (currentOrder?.step === 'in_trip') {
       const pLat = currentOrder.pickup.latitude;
@@ -311,19 +331,20 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       getShortestNavigationRoute([pLat, pLon], [dLat, dLon], mode).then((res) => {
         if (isCancelled) return;
-        const coords = res.coordinates && res.coordinates.length > 1
+        const rawCoords = res.coordinates && res.coordinates.length > 1
           ? res.coordinates
           : ([[pLon, pLat], [dLon, dLat]] as Array<[number, number]>);
+        const coords = densifyRoute(rawCoords, 2.0);
 
         routePointsRef.current = coords;
         routeIndexRef.current = 0;
-        setActiveRoute(coords);
+        setActiveRoute(rawCoords);
 
         setCurrentOrder((prev) => (prev ? {
           ...prev,
           distanceKm: res.distanceKm,
           estimatedDurationMinutes: res.durationMinutes,
-          routeCoordinates: coords,
+          routeCoordinates: rawCoords,
         } : null));
 
         const first = coords[0];
@@ -353,8 +374,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               heading: stepHeading,
             });
 
-            const remaining = routePointsRef.current.slice(idx);
-            setActiveRoute(remaining);
+            if (idx % 10 === 0 || idx >= routePointsRef.current.length - 5) {
+              const remaining = routePointsRef.current.slice(idx);
+              setActiveRoute(remaining);
+            }
 
             const now = Date.now();
             if (now - lastWsSend > 1000) {
@@ -374,7 +397,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
             setActiveRoute([[dLon, dLat]]);
           }
-        }, 110);
+        }, 90);
       });
     } else {
       setActiveRoute(null);

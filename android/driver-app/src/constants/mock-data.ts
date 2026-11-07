@@ -253,8 +253,8 @@ export const SAMPLE_INCOMING_ORDER: DriverOrder = {
     rating: 5.0,
   },
   pickup: {
-    latitude: -6.1955,
-    longitude: 106.8225,
+    latitude: -6.1953,
+    longitude: 106.8218,
     address: 'Grand Indonesia, West Mall Lobby Utama',
     landmark: 'Sebelah Starbucks Lobby West',
     notes: 'Saya bawa ransel kecil, sudah di luar lobby',

@@ -71,10 +71,10 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
 }
 #map {
   position: absolute;
-  width: 320%;
-  height: 320%;
-  left: -110%;
-  top: -125%;
+  width: 240%;
+  height: 240%;
+  left: -70%;
+  top: -52%;
   background: #e5e7eb;
   transform-origin: 50% 50%;
   will-change: transform;
@@ -101,10 +101,9 @@ ${LEAFLET_JS}
 </div>
 <script>
 const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 17);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  subdomains: ['a', 'b', 'c'],
-  keepBuffer: 24,
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 18,
+  keepBuffer: 12,
   updateInterval: 50,
   updateWhenIdle: false,
   updateWhenZooming: false
@@ -130,6 +129,61 @@ var targetLon = ${initial.lon};
 var targetHeading = 0;
 var isAnimating = false;
 var isTrackingDriver = false;
+var currentRoadPoints = [];
+var lastRouteKey = '';
+
+function setNavigationRoad(latlngs) {
+  if (!latlngs || latlngs.length === 0) return;
+  currentRoadPoints = latlngs.slice();
+  updateActiveRouteLine();
+}
+
+function isPointBehind(curLat, curLon, headingDeg, ptLat, ptLon) {
+  var toRad = Math.PI / 180;
+  var hRad = headingDeg * toRad;
+  var fLat = Math.cos(hRad);
+  var fLon = Math.sin(hRad);
+  var dLat = (ptLat - curLat) * 111000;
+  var dLon = (ptLon - curLon) * 111000 * Math.cos(curLat * toRad);
+  var dot = dLat * fLat + dLon * fLon;
+  return dot < -2;
+}
+
+function updateActiveRouteLine() {
+  if (!routeLine || currentRoadPoints.length === 0) return;
+
+  // Prune points behind vehicle or within 10m
+  while (currentRoadPoints.length > 1) {
+    var pt = currentRoadPoints[0];
+    var d = Math.hypot(pt[0] - curLat, pt[1] - curLon) * 111000;
+    if (d < 10 || isPointBehind(curLat, curLon, curHeading, pt[0], pt[1])) {
+      currentRoadPoints.shift();
+    } else {
+      break;
+    }
+  }
+
+  var displayPts = [[curLat, curLon]].concat(currentRoadPoints);
+  routeLine.setLatLngs(displayPts);
+}
+
+function fetchRoadRoute(startLon, startLat, endLon, endLat) {
+  var key = startLon.toFixed(4) + ',' + startLat.toFixed(4) + '_' + endLon.toFixed(4) + ',' + endLat.toFixed(4);
+  if (key === lastRouteKey) return;
+  lastRouteKey = key;
+
+  var url = 'https://router.project-osrm.org/route/v1/driving/' + startLon + ',' + startLat + ';' + endLon + ',' + endLat + '?overview=full&geometries=geojson';
+  fetch(url)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        var coords = data.routes[0].geometry.coordinates;
+        var roadLatLngs = coords.map(function(c) { return [c[1], c[0]]; });
+        setNavigationRoad(roadLatLngs);
+      }
+    })
+    .catch(function() {});
+}
 
 function updateNavigationOrientation(heading) {
   var mapEl = document.getElementById('map');
@@ -146,10 +200,11 @@ function updateNavigationOrientation(heading) {
       }
     }
     if (pin) {
+      // Counter-rotate the vehicle icon by +heading so it points straight UP on the phone screen
       if (tiltDeg > 0) {
-        pin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(0deg)';
+        pin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
       } else {
-        pin.style.transform = 'rotate(0deg)';
+        pin.style.transform = 'rotate(' + heading + 'deg)';
       }
     }
     var mks = document.querySelectorAll('.mk');
@@ -227,12 +282,8 @@ function startSmoothLoop() {
         map.panTo([curLat, curLon], { animate: false });
       }
 
-      if (isTrackingDriver && routeLine) {
-        var pts = routeLine.getLatLngs();
-        if (pts && pts.length > 0) {
-          pts[0] = L.latLng(curLat, curLon);
-          routeLine.setLatLngs(pts);
-        }
+      if (isTrackingDriver) {
+        updateActiveRouteLine();
       }
     }
 
@@ -281,13 +332,16 @@ window.setState = function (s) {
     isTrackingDriver = false;
     document.body.classList.remove('tilted');
   }
-  if (s.route && s.route.length > 1) {
-    var latlngs = s.route.map(function(c) { return [c[1], c[0]]; });
-    if (isTrackingDriver) {
-      latlngs[0] = [curLat, curLon];
-    }
-    routeLine.setLatLngs(latlngs);
+  if (s.route && s.route.length > 2) {
+    var roadLatLngs = s.route.map(function(c) { return [c[1], c[0]]; });
+    setNavigationRoad(roadLatLngs);
+  } else if (s.route && s.route.length === 2) {
+    var p0 = s.route[0];
+    var p1 = s.route[1];
+    fetchRoadRoute(p0[0], p0[1], p1[0], p1[1]);
   } else {
+    currentRoadPoints = [];
+    lastRouteKey = '';
     routeLine.setLatLngs([]);
   }
 };

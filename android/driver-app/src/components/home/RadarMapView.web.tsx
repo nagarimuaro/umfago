@@ -12,7 +12,7 @@ export interface RadarMapViewProps {
 }
 
 export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSimulateOrder }) => {
-  const { currentLocation, isOnline, surgeAreas, currentOrder } = useDriver();
+  const { currentLocation, isOnline, surgeAreas, currentOrder, activeRoute } = useDriver();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
@@ -59,6 +59,29 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     const isInTrip = currentOrder?.step === 'in_trip';
     const isArrived = currentOrder?.step === 'arrived_at_pickup';
 
+    // Rute jalan raya riil (jarak terdekat via OSRM)
+    let routeCoords: Array<[number, number]> = [];
+    if (currentOrder) {
+      if (activeRoute && activeRoute.length > 0) {
+        routeCoords = activeRoute;
+      } else if (isInTrip) {
+        routeCoords = [
+          [lon, lat],
+          [currentOrder.destination.longitude, currentOrder.destination.latitude],
+        ];
+      } else if (isArrived) {
+        routeCoords = [
+          [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
+          [currentOrder.destination.longitude, currentOrder.destination.latitude],
+        ];
+      } else {
+        routeCoords = [
+          [lon, lat],
+          [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
+        ];
+      }
+    }
+
     const state = {
       driver: { lat, lon, heading },
       isOnline,
@@ -76,26 +99,13 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
               lat: currentOrder.destination.latitude,
               lon: currentOrder.destination.longitude,
             },
-            route: isInTrip
-              ? [
-                  [lon, lat],
-                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
-                ]
-              : isArrived
-              ? [
-                  [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
-                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
-                ]
-              : [
-                  [lon, lat],
-                  [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
-                ],
+            route: routeCoords,
           }
         : null,
     };
 
     sendCommand({ type: 'UPDATE_STATE', state });
-  }, [ready, lat, lon, heading, isOnline, currentOrder, surgeAreas]);
+  }, [ready, lat, lon, heading, isOnline, currentOrder, surgeAreas, activeRoute]);
 
   const handleRecenter = () => {
     sendCommand({ type: 'RECENTER', lon, lat });

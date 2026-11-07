@@ -198,3 +198,4 @@ function generateStreetGridRoute(start: [number, number], end: [number, number])
     summary: 'Rute Terdekat (Offline)',
   };
 }
+

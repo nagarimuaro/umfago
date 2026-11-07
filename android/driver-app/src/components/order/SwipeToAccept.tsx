@@ -153,6 +153,7 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
       <View
         {...panResponder.panHandlers}
         style={styles.track}
+        {...(Platform.OS === 'web' ? { onClick: () => onAccept() } : {})}
       >
         {/* Dynamic Neon Fill as thumb slides */}
         <Animated.View

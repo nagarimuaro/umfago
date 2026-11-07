@@ -32,17 +32,17 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       height: 100%;
       position: relative;
       overflow: hidden;
-      background: #1a1e22;
+      background: #121517;
       perspective: 900px;
     }
 
     #map {
       position: absolute;
-      width: 320%;
-      height: 320%;
-      left: -110%;
-      top: -125%;
-      background: #1a1e22;
+      width: 240%;
+      height: 240%;
+      left: -70%;
+      top: -52%;
+      background: #121517;
       transform-origin: 50% 50%;
       will-change: transform;
     }
@@ -53,9 +53,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       transform-origin: bottom center;
     }
 
-    /* Dark Mode Filter for OpenStreetMap Raster Tiles */
-    body.night-mode #map { background: #1a1e22; }
-    body.night-mode .maplibregl-canvas-container canvas,
+    /* Night Mode Filter for ArcGIS World Street Map */
+    body.night-mode #map { background: #121517; }
     body.night-mode .leaflet-tile-pane {
       filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
     }
@@ -239,6 +238,64 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   var targetHeading = 0;
   var isAnimating = false;
   var isNavigating = false;
+  var currentRoadPoints = [];
+  var lastRouteKey = '';
+
+  function setNavigationRoad(latlngs) {
+    if (!latlngs || latlngs.length === 0) return;
+    currentRoadPoints = latlngs.slice();
+    updateActiveRouteLine();
+  }
+
+  function isPointBehind(curLat, curLon, headingDeg, ptLat, ptLon) {
+    var toRad = Math.PI / 180;
+    var hRad = headingDeg * toRad;
+    var fLat = Math.cos(hRad);
+    var fLon = Math.sin(hRad);
+    var dLat = (ptLat - curLat) * 111000;
+    var dLon = (ptLon - curLon) * 111000 * Math.cos(curLat * toRad);
+    var dot = dLat * fLat + dLon * fLon;
+    return dot < -2;
+  }
+
+  function updateActiveRouteLine() {
+    if (!leafletRouteLine || currentRoadPoints.length === 0) return;
+
+    // Prune road points that are behind the vehicle or within 10 meters
+    while (currentRoadPoints.length > 1) {
+      var pt = currentRoadPoints[0];
+      var d = Math.hypot(pt[0] - curLat, pt[1] - curLon) * 111000;
+      if (d < 10 || isPointBehind(curLat, curLon, curHeading, pt[0], pt[1])) {
+        currentRoadPoints.shift();
+      } else {
+        break;
+      }
+    }
+
+    var displayPts = [[curLat, curLon]].concat(currentRoadPoints);
+    leafletRouteLine.setLatLngs(displayPts);
+    if (leafletGlowLine) {
+      leafletGlowLine.setLatLngs(displayPts);
+    }
+  }
+
+  function fetchRoadRoute(startLon, startLat, endLon, endLat) {
+    var key = startLon.toFixed(4) + ',' + startLat.toFixed(4) + '_' + endLon.toFixed(4) + ',' + endLat.toFixed(4);
+    if (key === lastRouteKey) return;
+    lastRouteKey = key;
+
+    var url = 'https://router.project-osrm.org/route/v1/driving/' + startLon + ',' + startLat + ';' + endLon + ',' + endLat + '?overview=full&geometries=geojson';
+    fetch(url)
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          var coords = data.routes[0].geometry.coordinates;
+          var roadLatLngs = coords.map(function(c) { return [c[1], c[0]]; });
+          setNavigationRoad(roadLatLngs);
+        }
+      })
+      .catch(function() {});
+  }
 
   function updateNavigationOrientation(heading) {
     var mapEl = document.getElementById('map');
@@ -256,12 +313,13 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         }
       }
 
-      // 2. Driver Icon points straight UP (0deg relative to phone screen)
+      // 2. Driver Icon: Points STRAIGHT UP (0deg relative to user's phone screen)
+      // Since mapEl has rotate(-heading), driverPin must rotate +heading so net screen angle is 0deg (UP)
       if (driverPin) {
         if (tiltDeg > 0) {
-          driverPin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(0deg)';
+          driverPin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
         } else {
-          driverPin.style.transform = 'rotate(0deg)';
+          driverPin.style.transform = 'rotate(' + heading + 'deg)';
         }
       }
 
@@ -285,7 +343,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         }
       }
 
-      // 2. Driver Icon rotates like a physical compass needle
+      // 2. Driver Icon rotates like a physical compass needle (points to heading)
       if (driverPin) {
         if (tiltDeg > 0) {
           driverPin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
@@ -349,14 +407,9 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           leafletMap.panTo([curLat, curLon], { animate: false });
         }
 
-        // Keep route polyline anchored to current driver coordinate
-        if (isNavigating && leafletRouteLine) {
-          var pts = leafletRouteLine.getLatLngs();
-          if (pts && pts.length > 0) {
-            pts[0] = L.latLng(curLat, curLon);
-            leafletRouteLine.setLatLngs(pts);
-            if (leafletGlowLine) leafletGlowLine.setLatLngs(pts);
-          }
+        // Keep route line snapped forward along the road
+        if (isNavigating) {
+          updateActiveRouteLine();
         }
       }
 
@@ -474,10 +527,9 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   function initLeaflet() {
     leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 17);
     
-    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      subdomains: ['a', 'b', 'c'],
-      keepBuffer: 24,
+    tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18,
+      keepBuffer: 12,
       updateInterval: 50,
       updateWhenIdle: false,
       updateWhenZooming: false
@@ -598,24 +650,27 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         } else {
           leafletMap.removeLayer(destMarker);
         }
-        if (state.order.route && state.order.route.length > 1) {
-          var latlngs = state.order.route.map(function(c) { return [c[1], c[0]]; });
-          latlngs[0] = [curLat, curLon];
-          leafletGlowLine.setLatLngs(latlngs);
-          leafletRouteLine.setLatLngs(latlngs);
+        if (state.order.route && state.order.route.length > 2) {
+          // Rute jalan raya riil lengkap (> 2 titik koordinat jalan)
+          var roadLatLngs = state.order.route.map(function(c) { return [c[1], c[0]]; });
+          setNavigationRoad(roadLatLngs);
+        } else if (state.order.route && state.order.route.length === 2) {
+          // Hanya 2 titik ujung penjemputan & tujuan: langsung kalkulasi rute jalan raya via OSRM
+          var p0 = state.order.route[0];
+          var p1 = state.order.route[1];
+          fetchRoadRoute(p0[0], p0[1], p1[0], p1[1]);
+        }
 
-          if (isHeading || isInTrip) {
-            document.body.classList.add('tilted');
-            if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
-              leafletMap.setZoom(17);
-            }
-          } else {
-            document.body.classList.remove('tilted');
-            leafletMap.fitBounds(latlngs, { padding: [50, 50] });
+        if (isHeading || isInTrip) {
+          document.body.classList.add('tilted');
+          if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
+            leafletMap.setZoom(17);
           }
         }
       }
     } else {
+      currentRoadPoints = [];
+      lastRouteKey = '';
       if (engine === 'maplibre' && maplibreMap) {
         pickupMarker.remove();
         destMarker.remove();
@@ -704,8 +759,14 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   window.toggleNightMode = function(enabled) {
     if (enabled) {
       document.body.classList.add('night-mode');
+      if (tileLayer) {
+        tileLayer.setUrl('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}');
+      }
     } else {
       document.body.classList.remove('night-mode');
+      if (tileLayer) {
+        tileLayer.setUrl('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
+      }
     }
   };
 
