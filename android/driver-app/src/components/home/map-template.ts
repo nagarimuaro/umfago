@@ -141,7 +141,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     .maplibregl-canvas { outline: none; }
   </style>
 </head>
-<body>
+<body class="night-mode">
 <div id="map"></div>
 <script>
   function sendApp(msg) {

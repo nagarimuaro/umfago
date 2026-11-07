@@ -17,7 +17,7 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   const webViewRef = useRef<WebView<object>>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
-  const [isNightMode, setIsNightMode] = useState(false);
+  const [isNightMode, setIsNightMode] = useState(true);
 
   const lat = currentLocation?.latitude ?? -6.1952;
   const lon = currentLocation?.longitude ?? 106.8231;

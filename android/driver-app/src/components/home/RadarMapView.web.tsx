@@ -16,7 +16,7 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
-  const [isNightMode, setIsNightMode] = useState(false);
+  const [isNightMode, setIsNightMode] = useState(true);
 
   const lat = currentLocation?.latitude ?? -6.1952;
   const lon = currentLocation?.longitude ?? 106.8231;
@@ -121,8 +121,9 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
 
   return (
     <View style={styles.container}>
-      {/* MapLibre GL OSM / CartoDB Dark Matter iframe for Web */}
+      {/* MapLibre GL OSM Navigation View for Web */}
       <iframe
+        key="driver-radar-map-v3"
         ref={iframeRef}
         srcDoc={mapHtml}
         style={{
