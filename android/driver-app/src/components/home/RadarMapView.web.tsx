@@ -54,25 +54,41 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   useEffect(() => {
     if (!ready) return;
 
+    const isInTrip = currentOrder?.step === 'in_trip';
+    const isArrived = currentOrder?.step === 'arrived_at_pickup';
+
     const state = {
       driver: { lat, lon, heading },
       isOnline,
       surges: surgeAreas,
       order: currentOrder
         ? {
-            pickup: {
-              lat: currentOrder.pickup.latitude,
-              lon: currentOrder.pickup.longitude,
-            },
+            step: currentOrder.step,
+            pickup: isInTrip
+              ? null
+              : {
+                  lat: currentOrder.pickup.latitude,
+                  lon: currentOrder.pickup.longitude,
+                },
             dest: {
               lat: currentOrder.destination.latitude,
               lon: currentOrder.destination.longitude,
             },
-            route: [
-              [lon, lat],
-              [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
-              [currentOrder.destination.longitude, currentOrder.destination.latitude],
-            ],
+            route: isInTrip
+              ? [
+                  [lon, lat],
+                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
+                ]
+              : isArrived
+              ? [
+                  [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
+                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
+                ]
+              : [
+                  [lon, lat],
+                  [currentOrder.pickup.longitude, currentOrder.pickup.latitude],
+                  [currentOrder.destination.longitude, currentOrder.destination.latitude],
+                ],
           }
         : null,
     };

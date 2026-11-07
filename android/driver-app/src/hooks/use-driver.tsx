@@ -25,6 +25,19 @@ interface DriverContextType {
 
 const DriverContext = createContext<DriverContextType | null>(null);
 
+// Helper menghitung sudut kompas (bearing/heading) dari titik A ke titik B
+function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360;
+}
+
 export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [driver, setDriver] = useState<DriverProfile>(INITIAL_DRIVER_PROFILE);
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -39,6 +52,8 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const locationWatchSub = useRef<Location.LocationSubscription | null>(null);
+  const tripSimTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tripProgressRef = useRef<number>(0);
 
   // Initialize GPS Tracking
   useEffect(() => {
@@ -163,21 +178,96 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIncomingOrder(null);
   }, []);
 
+  // Simulasi pergerakan driver sepanjang rute saat perjalanan mengantar penumpang (in_trip)
+  useEffect(() => {
+    if (currentOrder?.step === 'in_trip') {
+      tripProgressRef.current = 0;
+      const pLat = currentOrder.pickup.latitude;
+      const pLon = currentOrder.pickup.longitude;
+      const dLat = currentOrder.destination.latitude;
+      const dLon = currentOrder.destination.longitude;
+      const heading = Math.round(calculateBearing(pLat, pLon, dLat, dLon));
+
+      // Pas mulai perjalanan: posisi driver pas di lokasi penjemputan dan menghadap tujuan
+      setCurrentLocation({
+        latitude: pLat,
+        longitude: pLon,
+        heading,
+      });
+
+      tripSimTimer.current = setInterval(() => {
+        if (tripProgressRef.current < 0.95) {
+          tripProgressRef.current = Math.min(0.95, tripProgressRef.current + 0.04);
+          const prog = tripProgressRef.current;
+          const curLat = pLat + (dLat - pLat) * prog;
+          const curLon = pLon + (dLon - pLon) * prog;
+
+          setCurrentLocation({
+            latitude: curLat,
+            longitude: curLon,
+            heading,
+          });
+
+          DriverWebSocketService.sendLocation(curLat, curLon, heading, 28);
+        }
+      }, 2500);
+    } else {
+      if (tripSimTimer.current) {
+        clearInterval(tripSimTimer.current);
+        tripSimTimer.current = null;
+      }
+    }
+
+    return () => {
+      if (tripSimTimer.current) {
+        clearInterval(tripSimTimer.current);
+        tripSimTimer.current = null;
+      }
+    };
+  }, [currentOrder?.step, currentOrder?.id]);
+
   const advanceOrderStep = useCallback(async () => {
     if (!currentOrder) return;
 
     let nextStep: DriverOrderStep = currentOrder.step;
     let action: 'arrive' | 'start' | 'complete' = 'arrive';
 
+    const pLat = currentOrder.pickup.latitude;
+    const pLon = currentOrder.pickup.longitude;
+    const dLat = currentOrder.destination.latitude;
+    const dLon = currentOrder.destination.longitude;
+    const headingToDest = Math.round(calculateBearing(pLat, pLon, dLat, dLon));
+
     if (currentOrder.step === 'heading_to_pickup') {
       nextStep = 'arrived_at_pickup';
       action = 'arrive';
+      // Posisi driver tepat di titik penjemputan
+      setCurrentLocation({
+        latitude: pLat,
+        longitude: pLon,
+        heading: headingToDest,
+      });
+      DriverWebSocketService.sendLocation(pLat, pLon, headingToDest, 0);
     } else if (currentOrder.step === 'arrived_at_pickup') {
       nextStep = 'in_trip';
       action = 'start';
+      // Pas mulai perjalanan: posisi driver pas di lokasi penjemputan dan siap menuju alamat tujuan
+      setCurrentLocation({
+        latitude: pLat,
+        longitude: pLon,
+        heading: headingToDest,
+      });
+      DriverWebSocketService.sendLocation(pLat, pLon, headingToDest, 25);
     } else if (currentOrder.step === 'in_trip') {
       nextStep = 'completed';
       action = 'complete';
+      // Selesai order: posisi driver pas di lokasi tujuan
+      setCurrentLocation({
+        latitude: dLat,
+        longitude: dLon,
+        heading: headingToDest,
+      });
+      DriverWebSocketService.sendLocation(dLat, dLon, headingToDest, 0);
     }
 
     if (nextStep === 'completed') {

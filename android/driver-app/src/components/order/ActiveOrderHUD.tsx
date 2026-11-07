@@ -63,11 +63,21 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
       {/* Turn-by-Turn Instruction Strip */}
       <View style={styles.guidanceStrip}>
         <View style={styles.guidanceLeft}>
-          <MaterialIcons name="turn-slight-right" size={26} color={colors.primary} />
-          <View>
-            <Text style={styles.guidanceDistance}>250 meter</Text>
+          <MaterialIcons
+            name={isInTrip ? 'navigation' : isArrivedAtPickup ? 'place' : 'turn-slight-right'}
+            size={26}
+            color={colors.primary}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.guidanceDistance}>
+              {isInTrip
+                ? `${currentOrder.distanceKm} km Menuju Alamat Tujuan`
+                : isArrivedAtPickup
+                ? 'Tiba di Penjemputan'
+                : '300 meter Menuju Titik Jemput'}
+            </Text>
             <Text style={styles.guidanceStreet} numberOfLines={1}>
-              {isHeadingToPickup ? currentOrder.pickup.address : currentOrder.destination.address}
+              {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
             </Text>
           </View>
         </View>
@@ -114,18 +124,22 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
         {/* Target Address Card */}
         <View style={styles.addressBox}>
           <MaterialIcons
-            name={isHeadingToPickup ? 'my-location' : 'location-on'}
+            name={isInTrip ? 'location-on' : 'my-location'}
             size={18}
-            color={isHeadingToPickup ? colors.primary : '#FF5252'}
+            color={isInTrip ? '#FF5252' : colors.primary}
           />
           <View style={{ flex: 1 }}>
-            <Text style={styles.targetLabel}>{isHeadingToPickup ? 'LOKASI JEMPUT' : 'LOKASI ANTAR'}</Text>
+            <Text style={styles.targetLabel}>{isInTrip ? 'LOKASI TUJUAN ANTAR' : 'LOKASI PENJEMPUTAN'}</Text>
             <Text style={styles.targetAddress} numberOfLines={2}>
-              {isHeadingToPickup ? currentOrder.pickup.address : currentOrder.destination.address}
+              {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
             </Text>
-            {isHeadingToPickup && currentOrder.pickup.landmark && (
-              <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
-            )}
+            {isInTrip
+              ? currentOrder.destination.landmark && (
+                  <Text style={styles.targetNote}>Catatan: {currentOrder.destination.landmark}</Text>
+                )
+              : currentOrder.pickup.landmark && (
+                  <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
+                )}
           </View>
         </View>
 

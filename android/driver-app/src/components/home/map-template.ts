@@ -244,9 +244,20 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       if (state.order.route && state.order.route.length > 1) {
         const src = map.getSource('route');
         if (src) src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: state.order.route } });
-        const b = new maplibregl.LngLatBounds();
-        state.order.route.forEach(c => b.extend(c));
-        map.fitBounds(b, { padding: 60, maxZoom: 16 });
+        if (state.order.step === 'in_trip') {
+          // Cockpit 3D navigation view: ikuti posisi driver menghadap tujuan
+          map.easeTo({
+            center: [state.driver.lon, state.driver.lat],
+            zoom: 16.5,
+            pitch: 45,
+            bearing: state.driver.heading || 0,
+            duration: 800
+          });
+        } else {
+          const b = new maplibregl.LngLatBounds();
+          state.order.route.forEach(c => b.extend(c));
+          map.fitBounds(b, { padding: 60, maxZoom: 16 });
+        }
       }
     } else {
       pickupMarker.remove();
