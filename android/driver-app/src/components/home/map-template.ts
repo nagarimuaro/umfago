@@ -32,39 +32,28 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       height: 100%;
       position: relative;
       overflow: hidden;
+      background: #1a1e22;
+      perspective: 900px;
     }
 
     #map {
-      width: 100%;
-      height: 100%;
       position: absolute;
-      top: 0;
-      left: 0;
-      background: #121517;
-      transition: transform 0.4s ease-out;
-    }
-
-    /* 3D Tilted Perspective Mode: Oversized so the perspective keystone NEVER exposes black edges */
-    body.tilted #map-viewport {
-      perspective: 800px;
-    }
-    body.tilted #map {
-      width: 160%;
-      height: 160%;
-      left: -30%;
-      top: -30%;
-      transform: rotateX(22deg);
-      transform-origin: 50% 60%;
+      width: 320%;
+      height: 320%;
+      left: -110%;
+      top: -125%;
+      background: #1a1e22;
+      transform-origin: 50% 50%;
+      will-change: transform;
     }
 
     /* Stand markers upright on tilted map */
     body.tilted .order-pin,
     body.tilted .surge-badge {
-      transform: rotateX(-22deg);
       transform-origin: bottom center;
     }
 
-    // Dark Mode Filter for OpenStreetMap Raster Tiles
+    /* Dark Mode Filter for OpenStreetMap Raster Tiles */
     body.night-mode #map { background: #1a1e22; }
     body.night-mode .maplibregl-canvas-container canvas,
     body.night-mode .leaflet-tile-pane {
@@ -249,15 +238,70 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   var targetLon = ${initialLon};
   var targetHeading = 0;
   var isAnimating = false;
+  var isNavigating = false;
 
-  function updateDriverHeading(heading) {
-    var pin = document.querySelector('.driver-pin');
-    if (pin) {
-      var isTilted = document.body.classList.contains('tilted');
-      if (isTilted) {
-        pin.style.transform = 'rotateX(-22deg) rotateZ(' + heading + 'deg)';
-      } else {
-        pin.style.transform = 'rotate(' + heading + 'deg)';
+  function updateNavigationOrientation(heading) {
+    var mapEl = document.getElementById('map');
+    var driverPin = document.querySelector('.driver-pin');
+    var isTilted = document.body.classList.contains('tilted');
+    var tiltDeg = isTilted ? 24 : 0;
+
+    if (isNavigating) {
+      // 1. Heading-Up Mode: Map rotates by -heading so the route and road always go straight UP
+      if (mapEl) {
+        if (tiltDeg > 0) {
+          mapEl.style.transform = 'rotateX(' + tiltDeg + 'deg) rotate(' + (-heading) + 'deg)';
+        } else {
+          mapEl.style.transform = 'rotate(' + (-heading) + 'deg)';
+        }
+      }
+
+      // 2. Driver Icon points straight UP (0deg relative to phone screen)
+      if (driverPin) {
+        if (tiltDeg > 0) {
+          driverPin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(0deg)';
+        } else {
+          driverPin.style.transform = 'rotate(0deg)';
+        }
+      }
+
+      // 3. Counter-rotate pins so their labels stay horizontal and readable
+      var orderPins = document.querySelectorAll('.order-pin, .surge-badge');
+      for (var i = 0; i < orderPins.length; i++) {
+        if (tiltDeg > 0) {
+          orderPins[i].style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
+        } else {
+          orderPins[i].style.transform = 'rotate(' + heading + 'deg)';
+        }
+      }
+    } else {
+      // Mode: Idle / Compass Mode
+      // 1. Map is North-Up
+      if (mapEl) {
+        if (tiltDeg > 0) {
+          mapEl.style.transform = 'rotateX(' + tiltDeg + 'deg)';
+        } else {
+          mapEl.style.transform = 'none';
+        }
+      }
+
+      // 2. Driver Icon rotates like a physical compass needle
+      if (driverPin) {
+        if (tiltDeg > 0) {
+          driverPin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
+        } else {
+          driverPin.style.transform = 'rotate(' + heading + 'deg)';
+        }
+      }
+
+      // 3. Upright badges
+      var pins = document.querySelectorAll('.order-pin, .surge-badge');
+      for (var j = 0; j < pins.length; j++) {
+        if (tiltDeg > 0) {
+          pins[j].style.transform = 'rotateX(-' + tiltDeg + 'deg)';
+        } else {
+          pins[j].style.transform = 'none';
+        }
       }
     }
   }
@@ -272,43 +316,56 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         compass = (360 - e.alpha) % 360;
       }
       if (compass !== null && !isNaN(compass)) {
-        targetHeading = compass;
-        updateDriverHeading(compass);
+        if (!isNavigating) {
+          targetHeading = compass;
+          updateNavigationOrientation(compass);
+        }
       }
     }, true);
   }
 
-  var lastCameraPan = 0;
   function startSmoothLoop() {
     if (isAnimating) return;
     isAnimating = true;
 
     function frame() {
-      var step = 0.15;
       var dLat = targetLat - curLat;
       var dLon = targetLon - curLon;
       var dHeading = (targetHeading - curHeading + 540) % 360 - 180;
 
-      if (Math.abs(dLat) > 0.0000001 || Math.abs(dLon) > 0.0000001) {
-        curLat += dLat * step;
-        curLon += dLon * step;
+      var moved = Math.abs(dLat) > 0.00000005 || Math.abs(dLon) > 0.00000005;
+      var turned = Math.abs(dHeading) > 0.05;
 
-        // 60 FPS silky smooth marker glide
+      if (moved) {
+        // Continuous 60 FPS interpolation (~16 ms per frame)
+        curLat += dLat * 0.22;
+        curLon += dLon * 0.22;
+
         if (driverMarker) {
           driverMarker.setLatLng([curLat, curLon]);
         }
+        if (leafletMap) {
+          // Instantaneous 60 FPS pan with NO CSS transition overhead or interruption
+          leafletMap.panTo([curLat, curLon], { animate: false });
+        }
 
-        // Smooth camera follow without thrashing tile network requests
-        var now = Date.now();
-        if (leafletMap && now - lastCameraPan > 250) {
-          lastCameraPan = now;
-          leafletMap.panTo([curLat, curLon], { animate: true, duration: 0.35, easeLinearity: 0.25 });
+        // Keep route polyline anchored to current driver coordinate
+        if (isNavigating && leafletRouteLine) {
+          var pts = leafletRouteLine.getLatLngs();
+          if (pts && pts.length > 0) {
+            pts[0] = L.latLng(curLat, curLon);
+            leafletRouteLine.setLatLngs(pts);
+            if (leafletGlowLine) leafletGlowLine.setLatLngs(pts);
+          }
         }
       }
 
-      if (Math.abs(dHeading) > 0.05) {
-        curHeading = (curHeading + dHeading * 0.2 + 360) % 360;
-        updateDriverHeading(curHeading);
+      if (turned) {
+        curHeading = (curHeading + dHeading * 0.22 + 360) % 360;
+      }
+
+      if (moved || turned) {
+        updateNavigationOrientation(curHeading);
       }
 
       requestAnimationFrame(frame);
@@ -415,13 +472,13 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   var tileLayer = null;
 
   function initLeaflet() {
-    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 16.5);
+    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 17);
     
     tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       subdomains: ['a', 'b', 'c'],
-      keepBuffer: 16,
-      updateInterval: 100,
+      keepBuffer: 24,
+      updateInterval: 50,
       updateWhenIdle: false,
       updateWhenZooming: false
     }).addTo(leafletMap);
@@ -472,21 +529,27 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         targetHeading = state.driver.heading;
       }
 
-      startSmoothLoop();
-
       var pulse = document.querySelector('.driver-pulse');
       if (pulse) pulse.style.display = state.isOnline ? 'block' : 'none';
 
-      // Saat perjalanan (jemput atau antar), kamera selalu miring 3D dan pass dekat di atas motor
+      // Heading-up navigation mode saat perjalanan jemput atau antar
       if (state.order && (state.order.step === 'heading_to_pickup' || state.order.step === 'in_trip')) {
+        isNavigating = true;
         document.body.classList.add('tilted');
-        if (leafletMap && leafletMap.getZoom() < 17) {
-          leafletMap.setZoom(17.5);
+        document.body.classList.add('navigating');
+        if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
+          leafletMap.setZoom(17);
         }
-      } else if (!state.order) {
-        document.body.classList.remove('tilted');
+      } else {
+        isNavigating = false;
+        document.body.classList.remove('navigating');
+        if (!state.order) {
+          document.body.classList.remove('tilted');
+        }
       }
-      updateDriverHeading(curHeading);
+
+      startSmoothLoop();
+      updateNavigationOrientation(curHeading);
     }
 
     // 2. Update Active Order Markers & Route
@@ -537,12 +600,15 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         }
         if (state.order.route && state.order.route.length > 1) {
           var latlngs = state.order.route.map(function(c) { return [c[1], c[0]]; });
+          latlngs[0] = [curLat, curLon];
           leafletGlowLine.setLatLngs(latlngs);
           leafletRouteLine.setLatLngs(latlngs);
 
           if (isHeading || isInTrip) {
             document.body.classList.add('tilted');
-            leafletMap.setView([state.driver.lat, state.driver.lon], 18.5, { animate: true, duration: 0.8 });
+            if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
+              leafletMap.setZoom(17);
+            }
           } else {
             document.body.classList.remove('tilted');
             leafletMap.fitBounds(latlngs, { padding: [50, 50] });
@@ -596,10 +662,13 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   };
 
   window.recenter = function(lon, lat) {
+    targetLat = lat;
+    targetLon = lon;
     if (engine === 'maplibre' && maplibreMap) {
       maplibreMap.easeTo({ center: [lon, lat], zoom: 16 });
     } else if (engine === 'leaflet' && leafletMap) {
-      leafletMap.setView([lat, lon], 16.5, { animate: true });
+      leafletMap.panTo([lat, lon], { animate: false });
+      updateNavigationOrientation(curHeading);
     }
   };
 
@@ -615,14 +684,10 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       var isTilted = document.body.classList.contains('tilted');
       if (isTilted) {
         document.body.classList.remove('tilted');
-        setTimeout(function() { leafletMap.invalidateSize(); }, 250);
-        leafletMap.setView([lat, lon], 16, { animate: true });
       } else {
         document.body.classList.add('tilted');
-        setTimeout(function() { leafletMap.invalidateSize(); }, 250);
-        leafletMap.setView([lat, lon], 17.5, { animate: true });
       }
-      updateDriverHeading(curHeading);
+      updateNavigationOrientation(curHeading);
     }
   };
 

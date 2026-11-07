@@ -67,29 +67,19 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
+  perspective: 900px;
 }
 #map {
-  width: 100%;
-  height: 100%;
   position: absolute;
-  top: 0;
-  left: 0;
-  transition: transform 0.4s ease-out;
-}
-/* 3D Tilted Navigation Perspective Mode */
-body.tilted #map-viewport {
-  perspective: 800px;
-}
-body.tilted #map {
-  width: 160%;
-  height: 160%;
-  left: -30%;
-  top: -30%;
-  transform: rotateX(22deg);
-  transform-origin: 50% 60%;
+  width: 320%;
+  height: 320%;
+  left: -110%;
+  top: -125%;
+  background: #e5e7eb;
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 body.tilted .mk {
-  transform: rotateX(-22deg);
   transform-origin: bottom center;
 }
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
@@ -100,7 +90,7 @@ body.tilted .mk {
 .mk-driver { width: 44px; height: 44px; border-radius: 50%; background: #1a1a26;
   border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
-  transition: transform 0.12s linear; transform-origin: 50% 50%; z-index: 999999 !important; }
+  transform-origin: 50% 50%; z-index: 999999 !important; }
 </style>
 <script>
 ${LEAFLET_JS}
@@ -110,12 +100,12 @@ ${LEAFLET_JS}
   <div id="map"></div>
 </div>
 <script>
-const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 16.5);
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 17);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   subdomains: ['a', 'b', 'c'],
-  keepBuffer: 16,
-  updateInterval: 100,
+  keepBuffer: 24,
+  updateInterval: 50,
   updateWhenIdle: false,
   updateWhenZooming: false
 }).addTo(map);
@@ -139,15 +129,59 @@ var targetLat = ${initial.lat};
 var targetLon = ${initial.lon};
 var targetHeading = 0;
 var isAnimating = false;
+var isTrackingDriver = false;
 
-function updateDriverHeading(heading) {
+function updateNavigationOrientation(heading) {
+  var mapEl = document.getElementById('map');
   var pin = document.querySelector('.mk-driver');
-  if (pin) {
-    var isTilted = document.body.classList.contains('tilted');
-    if (isTilted) {
-      pin.style.transform = 'rotateX(-22deg) rotateZ(' + heading + 'deg)';
-    } else {
-      pin.style.transform = 'rotate(' + heading + 'deg)';
+  var isTilted = document.body.classList.contains('tilted');
+  var tiltDeg = isTilted ? 24 : 0;
+
+  if (isTrackingDriver) {
+    if (mapEl) {
+      if (tiltDeg > 0) {
+        mapEl.style.transform = 'rotateX(' + tiltDeg + 'deg) rotate(' + (-heading) + 'deg)';
+      } else {
+        mapEl.style.transform = 'rotate(' + (-heading) + 'deg)';
+      }
+    }
+    if (pin) {
+      if (tiltDeg > 0) {
+        pin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(0deg)';
+      } else {
+        pin.style.transform = 'rotate(0deg)';
+      }
+    }
+    var mks = document.querySelectorAll('.mk');
+    for (var i = 0; i < mks.length; i++) {
+      if (tiltDeg > 0) {
+        mks[i].style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
+      } else {
+        mks[i].style.transform = 'rotate(' + heading + 'deg)';
+      }
+    }
+  } else {
+    if (mapEl) {
+      if (tiltDeg > 0) {
+        mapEl.style.transform = 'rotateX(' + tiltDeg + 'deg)';
+      } else {
+        mapEl.style.transform = 'none';
+      }
+    }
+    if (pin) {
+      if (tiltDeg > 0) {
+        pin.style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
+      } else {
+        pin.style.transform = 'rotate(' + heading + 'deg)';
+      }
+    }
+    var mks2 = document.querySelectorAll('.mk');
+    for (var j = 0; j < mks2.length; j++) {
+      if (tiltDeg > 0) {
+        mks2[j].style.transform = 'rotateX(-' + tiltDeg + 'deg)';
+      } else {
+        mks2[j].style.transform = 'none';
+      }
     }
   }
 }
@@ -161,43 +195,53 @@ if (window.DeviceOrientationEvent) {
       compass = (360 - e.alpha) % 360;
     }
     if (compass !== null && !isNaN(compass)) {
-      targetHeading = compass;
-      updateDriverHeading(compass);
+      if (!isTrackingDriver) {
+        targetHeading = compass;
+        updateNavigationOrientation(compass);
+      }
     }
   }, true);
 }
 
-var lastCameraPan = 0;
 function startSmoothLoop() {
   if (isAnimating) return;
   isAnimating = true;
 
   function frame() {
-    var step = 0.15;
     var dLat = targetLat - curLat;
     var dLon = targetLon - curLon;
     var dHeading = (targetHeading - curHeading + 540) % 360 - 180;
 
-    if (Math.abs(dLat) > 0.0000001 || Math.abs(dLon) > 0.0000001) {
-      curLat += dLat * step;
-      curLon += dLon * step;
+    var moved = Math.abs(dLat) > 0.00000005 || Math.abs(dLon) > 0.00000005;
+    var turned = Math.abs(dHeading) > 0.05;
 
-      // 60 FPS smooth marker glide
+    if (moved) {
+      curLat += dLat * 0.22;
+      curLon += dLon * 0.22;
+
       if (markerDriver) {
         markerDriver.setLatLng([curLat, curLon]);
       }
 
-      // Smooth camera follow without thrashing tile downloads
-      var now = Date.now();
-      if (map && now - lastCameraPan > 250) {
-        lastCameraPan = now;
-        map.panTo([curLat, curLon], { animate: true, duration: 0.35, easeLinearity: 0.25 });
+      if (map) {
+        map.panTo([curLat, curLon], { animate: false });
+      }
+
+      if (isTrackingDriver && routeLine) {
+        var pts = routeLine.getLatLngs();
+        if (pts && pts.length > 0) {
+          pts[0] = L.latLng(curLat, curLon);
+          routeLine.setLatLngs(pts);
+        }
       }
     }
 
-    if (Math.abs(dHeading) > 0.05) {
-      curHeading = (curHeading + dHeading * 0.2 + 360) % 360;
-      updateDriverHeading(curHeading);
+    if (turned) {
+      curHeading = (curHeading + dHeading * 0.22 + 360) % 360;
+    }
+
+    if (moved || turned) {
+      updateNavigationOrientation(curHeading);
     }
 
     requestAnimationFrame(frame);
@@ -214,6 +258,7 @@ window.setState = function (s) {
   if (s.pickup) { markerA.setLatLng([s.pickup[1], s.pickup[0]]).addTo(map); } else { map.removeLayer(markerA); }
   if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
   if (s.driver) {
+    isTrackingDriver = true;
     var prevLat = targetLat;
     var prevLon = targetLon;
     targetLat = s.driver[1];
@@ -228,29 +273,35 @@ window.setState = function (s) {
 
     startSmoothLoop();
     document.body.classList.add('tilted');
-    if (map.getZoom() < 17) {
-      map.setZoom(18);
+    if (map.getZoom() < 16.5 || map.getZoom() > 17.5) {
+      map.setZoom(17);
     }
-    updateDriverHeading(curHeading);
+    updateNavigationOrientation(curHeading);
   } else {
+    isTrackingDriver = false;
     document.body.classList.remove('tilted');
   }
   if (s.route && s.route.length > 1) {
-    routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
+    var latlngs = s.route.map(function(c) { return [c[1], c[0]]; });
+    if (isTrackingDriver) {
+      latlngs[0] = [curLat, curLon];
+    }
+    routeLine.setLatLngs(latlngs);
   } else {
     routeLine.setLatLngs([]);
   }
 };
 
 window.focusDriver = function (lng, lat) {
+  isTrackingDriver = true;
   targetLat = lat;
   targetLon = lng;
   startSmoothLoop();
   document.body.classList.add('tilted');
-  if (map.getZoom() < 17) {
-    map.setZoom(18);
+  if (map.getZoom() < 16.5 || map.getZoom() > 17.5) {
+    map.setZoom(17);
   }
-  updateDriverHeading(curHeading);
+  updateNavigationOrientation(curHeading);
 };
 
 window.focusOn = function (lng, lat) {
