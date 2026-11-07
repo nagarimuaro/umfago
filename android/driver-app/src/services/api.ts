@@ -25,26 +25,152 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2): P
   return fetch(url, options);
 }
 
+const STORAGE_TOKEN_KEY = 'umfago_driver_jwt_token';
+const STORAGE_REFRESH_KEY = 'umfago_driver_refresh_token';
+const STORAGE_EMAIL_KEY = 'umfago_driver_email';
+const STORAGE_PASS_KEY = 'umfago_driver_pass';
+
+function getStorageItem(key: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(key);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function setStorageItem(key: string, value: string | null) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (value === null) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, value);
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export class DriverApiService {
-  private static token: string | null = null;
+  private static token: string | null = getStorageItem(STORAGE_TOKEN_KEY);
+  private static refreshToken: string | null = getStorageItem(STORAGE_REFRESH_KEY);
+  private static lastEmail: string = getStorageItem(STORAGE_EMAIL_KEY) || 'driver.motor@openjek.id';
+  private static lastPass: string = getStorageItem(STORAGE_PASS_KEY) || 'password123';
 
   public static setAuthToken(token: string | null) {
     this.token = token;
+    setStorageItem(STORAGE_TOKEN_KEY, token);
   }
 
   public static getAuthToken(): string | null {
+    if (!this.token) {
+      this.token = getStorageItem(STORAGE_TOKEN_KEY);
+    }
     return this.token;
   }
 
   private static getHeaders(): HeadersInit {
+    const token = this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    if (token && token !== 'demo-local-session') {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     return headers;
+  }
+
+  /**
+   * Ensure a valid non-expired JWT token exists, refreshing or re-authenticating if needed
+   */
+  private static async ensureValidToken(forceRefresh = false): Promise<string | null> {
+    const current = this.getAuthToken();
+    if (!forceRefresh && current && current !== 'demo-local-session') {
+      return current;
+    }
+
+    // Try refresh token first if available
+    const refresh = this.refreshToken || getStorageItem(STORAGE_REFRESH_KEY);
+    if (refresh) {
+      try {
+        const refRes = await fetch(`${BASE_URL}/api/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+        if (refRes.ok) {
+          const refData = await refRes.json();
+          if (refData.access_token) {
+            this.setAuthToken(refData.access_token);
+            if (refData.refresh_token) {
+              this.refreshToken = refData.refresh_token;
+              setStorageItem(STORAGE_REFRESH_KEY, refData.refresh_token);
+            }
+            return refData.access_token;
+          }
+        }
+      } catch {
+        // Fallback to re-login below
+      }
+    }
+
+    // Re-authenticate with stored credentials (or default driver motor account)
+    const email = this.lastEmail || getStorageItem(STORAGE_EMAIL_KEY) || 'driver.motor@openjek.id';
+    const pass = this.lastPass || getStorageItem(STORAGE_PASS_KEY) || 'password123';
+    try {
+      const loginRes = await fetchWithRetry(`${BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
+      if (loginRes.ok) {
+        const loginData = await loginRes.json();
+        if (loginData.access_token) {
+          this.setAuthToken(loginData.access_token);
+          if (loginData.refresh_token) {
+            this.refreshToken = loginData.refresh_token;
+            setStorageItem(STORAGE_REFRESH_KEY, loginData.refresh_token);
+          }
+          return loginData.access_token;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return this.token;
+  }
+
+  /**
+   * Authenticated fetch wrapper that automatically attaches JWT and transparently retries on 401
+   */
+  private static async authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    await this.ensureValidToken(false);
+    const res = await fetchWithRetry(url, {
+      ...options,
+      headers: {
+        ...this.getHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+
+    if (res.status === 401) {
+      const refreshed = await this.ensureValidToken(true);
+      if (refreshed && refreshed !== 'demo-local-session') {
+        return fetchWithRetry(url, {
+          ...options,
+          headers: {
+            ...this.getHeaders(),
+            ...(options.headers || {}),
+          },
+        });
+      }
+    }
+    return res;
   }
 
   // ── Authentication (Driver Specific) ──────────────────────────
@@ -54,6 +180,11 @@ export class DriverApiService {
    * POST /api/login
    */
   public static async login(email: string, pass: string): Promise<{ success: boolean; token?: string; user?: any; error?: string }> {
+    this.lastEmail = email;
+    this.lastPass = pass;
+    setStorageItem(STORAGE_EMAIL_KEY, email);
+    setStorageItem(STORAGE_PASS_KEY, pass);
+
     try {
       const res = await fetchWithRetry(`${BASE_URL}/api/login`, {
         method: 'POST',
@@ -64,7 +195,11 @@ export class DriverApiService {
       if (!res.ok) {
         return { success: false, error: data.error || 'Login gagal.' };
       }
-      this.token = data.access_token;
+      this.setAuthToken(data.access_token);
+      if (data.refresh_token) {
+        this.refreshToken = data.refresh_token;
+        setStorageItem(STORAGE_REFRESH_KEY, data.refresh_token);
+      }
       return { success: true, token: data.access_token, user: data.user };
     } catch (e: any) {
       // Fallback for seeded demo accounts if backend is temporarily restarting
@@ -126,9 +261,8 @@ export class DriverApiService {
    */
   public static async setDriverStatus(status: 'online' | 'offline'): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/api/driver/status`, {
+      const response = await this.authFetch(`${BASE_URL}/api/driver/status`, {
         method: 'PUT',
-        headers: this.getHeaders(),
         body: JSON.stringify({ status }),
       });
 
@@ -157,9 +291,8 @@ export class DriverApiService {
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/orders/${orderUuid}/accept`, {
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}/accept`, {
         method: 'PUT',
-        headers: this.getHeaders(),
       });
 
       if (!response.ok) {
@@ -185,9 +318,8 @@ export class DriverApiService {
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/orders/${orderUuid}/reject`, {
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}/reject`, {
         method: 'PUT',
-        headers: this.getHeaders(),
       });
 
       if (!response.ok) {
@@ -216,9 +348,8 @@ export class DriverApiService {
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/orders/${orderUuid}/status`, {
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}/status`, {
         method: 'PUT',
-        headers: this.getHeaders(),
         body: JSON.stringify({ action }),
       });
 
@@ -246,9 +377,7 @@ export class DriverApiService {
       const params = new URLSearchParams({ page: String(page) });
       if (status) params.append('status', status);
 
-      const response = await fetch(`${BASE_URL}/api/driver/orders?${params.toString()}`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/driver/orders?${params.toString()}`);
       if (response.ok) {
         return await response.json();
       }
@@ -265,9 +394,7 @@ export class DriverApiService {
    */
   public static async getDriverEarnings(): Promise<any> {
     try {
-      const response = await fetch(`${BASE_URL}/api/driver/earnings`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/driver/earnings`);
       if (response.ok) {
         return await response.json();
       }
@@ -283,9 +410,7 @@ export class DriverApiService {
    */
   public static async getDriverWalletHistory(page: number = 1): Promise<any[]> {
     try {
-      const response = await fetch(`${BASE_URL}/api/driver/wallet/history?page=${page}`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/driver/wallet/history?page=${page}`);
       if (response.ok) {
         const json = await response.json();
         return json.transactions || [];
@@ -303,9 +428,8 @@ export class DriverApiService {
    */
   public static async withdraw(amount: number): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/api/wallet/withdraw`, {
+      const response = await this.authFetch(`${BASE_URL}/api/wallet/withdraw`, {
         method: 'POST',
-        headers: this.getHeaders(),
         body: JSON.stringify({ amount }),
       });
 
@@ -328,9 +452,7 @@ export class DriverApiService {
    */
   public static async getKycStatus(): Promise<any> {
     try {
-      const response = await fetch(`${BASE_URL}/api/driver/kyc`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/driver/kyc`);
       if (response.ok) {
         return await response.json();
       }
@@ -357,9 +479,8 @@ export class DriverApiService {
     bank_account_name: string;
   }): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/api/driver/kyc`, {
+      const response = await this.authFetch(`${BASE_URL}/api/driver/kyc`, {
         method: 'POST',
-        headers: this.getHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -385,9 +506,8 @@ export class DriverApiService {
     vehicle_year?: number;
   }): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/api/profile/driver`, {
+      const response = await this.authFetch(`${BASE_URL}/api/profile/driver`, {
         method: 'PUT',
-        headers: this.getHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -410,9 +530,8 @@ export class DriverApiService {
    */
   public static async sendChatMessage(orderUuid: string, message: string): Promise<boolean> {
     try {
-      const response = await fetch(`${BASE_URL}/api/orders/${orderUuid}/chat`, {
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}/chat`, {
         method: 'POST',
-        headers: this.getHeaders(),
         body: JSON.stringify({ message }),
       });
       return response.ok;
@@ -427,9 +546,7 @@ export class DriverApiService {
    */
   public static async getChatHistory(orderUuid: string): Promise<any[]> {
     try {
-      const response = await fetch(`${BASE_URL}/api/orders/${orderUuid}/chat`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}/chat`);
       if (response.ok) {
         const json = await response.json();
         return json.messages || [];
@@ -448,9 +565,7 @@ export class DriverApiService {
    */
   public static async getNotifications(): Promise<{ notifications: any[]; unread_count: number }> {
     try {
-      const response = await fetch(`${BASE_URL}/api/notifications`, {
-        headers: this.getHeaders(),
-      });
+      const response = await this.authFetch(`${BASE_URL}/api/notifications`);
       if (response.ok) {
         const data = await response.json();
         return {
@@ -470,9 +585,8 @@ export class DriverApiService {
    */
   public static async createSupportTicket(subject: string, description: string, priority: string = 'high'): Promise<boolean> {
     try {
-      const response = await fetch(`${BASE_URL}/api/support/tickets`, {
+      const response = await this.authFetch(`${BASE_URL}/api/support/tickets`, {
         method: 'POST',
-        headers: this.getHeaders(),
         body: JSON.stringify({ subject, description, category: 'emergency', priority }),
       });
       return response.ok;
