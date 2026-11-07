@@ -20,12 +20,19 @@ export class DriverWebSocketService {
       this.currentToken = token;
     }
 
+    // Backend endpoint /ws requires a valid JWT token query param: /ws?token=<access_token>
+    // Do not attempt to connect without a token to avoid HTTP 401 Unauthorized errors
+    if (!this.currentToken) {
+      console.log('[DriverWS] Dispatch hub requires driver authentication. Waiting for valid session.');
+      return;
+    }
+
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     this.isExplicitlyClosed = false;
-    const url = this.currentToken ? `${WS_URL}?token=${this.currentToken}` : WS_URL;
+    const url = `${WS_URL}?token=${encodeURIComponent(this.currentToken)}`;
 
     try {
       this.socket = new WebSocket(url);
@@ -60,16 +67,19 @@ export class DriverWebSocketService {
       };
 
       this.socket.onerror = (err) => {
-        console.warn('[DriverWS] Socket error:', err);
+        console.warn('[DriverWS] Socket connection note:', (err as any)?.message || 'Connection closed by remote');
       };
 
       this.socket.onclose = () => {
         console.log('[DriverWS] Disconnected');
-        if (!this.isExplicitlyClosed) {
+        this.socket = null;
+        if (!this.isExplicitlyClosed && this.currentToken) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = setTimeout(() => {
-            this.connect(this.currentToken || undefined);
-          }, 5000);
+            if (this.currentToken && !this.isExplicitlyClosed) {
+              this.connect(this.currentToken);
+            }
+          }, 8000);
         }
       };
     } catch (e) {

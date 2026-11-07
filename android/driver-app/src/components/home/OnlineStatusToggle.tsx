@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { colors, rounded, spacing } from '../../constants/theme';
@@ -15,6 +15,30 @@ export const OnlineStatusToggle: React.FC = () => {
 
     (async () => {
       try {
+        if (Platform.OS === 'web') {
+          // On Web: use OpenStreetMap Nominatim to avoid Google Geocoding API warning
+          try {
+            const resp = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.latitude}&lon=${currentLocation.longitude}`,
+              { headers: { 'User-Agent': 'UmfagoDriver/1.0' } }
+            );
+            if (resp.ok) {
+              const data = await resp.json();
+              const addr = data.address;
+              const street = addr?.road || data.name || addr?.suburb;
+              const city = addr?.city_district || addr?.city || 'Jakarta Pusat';
+              if (isMounted) {
+                setAddress(street ? `${street}, ${city}` : 'Menteng, Jakarta Pusat');
+              }
+              return;
+            }
+          } catch {
+            if (isMounted) setAddress('Menteng, Jakarta Pusat');
+            return;
+          }
+        }
+
+        // Native Android / iOS uses device Geocoder
         const results = await Location.reverseGeocodeAsync({
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
@@ -32,7 +56,6 @@ export const OnlineStatusToggle: React.FC = () => {
           }
         }
       } catch {
-        // Fallback address for mock / web without reverse geocode permissions
         if (isMounted) {
           setAddress('Menteng, Jakarta Pusat');
         }

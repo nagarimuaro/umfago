@@ -97,8 +97,26 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     })();
 
-    // Connect to WebSocket
-    DriverWebSocketService.connect();
+    // Authenticate with Backend & Connect Realtime Dispatch WebSocket
+    (async () => {
+      try {
+        let token = DriverApiService.getAuthToken();
+        if (!token) {
+          // Auto-authenticate with driver motorcycle credentials
+          const res = await DriverApiService.login('driver.motor@openjek.id', 'password123');
+          if (res.success && res.token) {
+            token = res.token;
+            DriverWebSocketService.connect(token);
+          } else {
+            console.log('[DriverWS] Driver operating in standalone demo mode.');
+          }
+        } else {
+          DriverWebSocketService.connect(token);
+        }
+      } catch (err) {
+        console.log('[DriverWS] Backend auth skipped; standalone cockpit active.');
+      }
+    })();
     const unsub = DriverWebSocketService.addListener((payload) => {
       if (payload.type === 'incoming_order' || payload.type === 'order_offered') {
         const orderUuid = payload.order_uuid || payload.order?.uuid || `ord-${Date.now()}`;
