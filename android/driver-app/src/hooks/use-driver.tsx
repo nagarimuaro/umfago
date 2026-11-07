@@ -52,10 +52,11 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const locationWatchSub = useRef<Location.LocationSubscription | null>(null);
+  const headingWatchSub = useRef<Location.LocationSubscription | null>(null);
   const tripSimTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const tripProgressRef = useRef<number>(0);
 
-  // Initialize GPS Tracking
+  // Initialize GPS & Compass Tracking
   useEffect(() => {
     let isMounted = true;
 
@@ -69,6 +70,19 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             longitude: loc.coords.longitude,
             heading: loc.coords.heading ?? 90,
           });
+
+          // Watch physical device compass heading in real-time
+          try {
+            headingWatchSub.current = await Location.watchHeadingAsync((headingData) => {
+              if (!isMounted) return;
+              const deg = Math.round(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
+              if (!isNaN(deg)) {
+                setCurrentLocation((prev) => (prev ? { ...prev, heading: deg } : prev));
+              }
+            });
+          } catch {
+            // Compass sensor not available on web/emulator
+          }
 
           locationWatchSub.current = await Location.watchPositionAsync(
             {
@@ -161,6 +175,9 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (locationWatchSub.current) {
         locationWatchSub.current.remove();
       }
+      if (headingWatchSub.current) {
+        headingWatchSub.current.remove();
+      }
       unsub();
     };
   }, [isOnline]);
@@ -235,6 +252,17 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             lastWsSend = now;
             DriverWebSocketService.sendLocation(curLat, curLon, heading, 30);
           }
+        } else {
+          // Sampai di titik penjemputan: stop pergerakan agar tidak jalan terus
+          if (tripSimTimer.current) {
+            clearInterval(tripSimTimer.current);
+            tripSimTimer.current = null;
+          }
+          setCurrentLocation({
+            latitude: pLat,
+            longitude: pLon,
+            heading,
+          });
         }
       }, 80);
     } else if (currentOrder?.step === 'in_trip') {
@@ -271,6 +299,17 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             lastWsSend = now;
             DriverWebSocketService.sendLocation(curLat, curLon, heading, 28);
           }
+        } else {
+          // Sampai di tujuan: stop pergerakan agar tidak jalan terus
+          if (tripSimTimer.current) {
+            clearInterval(tripSimTimer.current);
+            tripSimTimer.current = null;
+          }
+          setCurrentLocation({
+            latitude: dLat,
+            longitude: dLon,
+            heading,
+          });
         }
       }, 80);
     } else {

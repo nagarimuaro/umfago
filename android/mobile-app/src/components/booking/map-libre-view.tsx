@@ -67,8 +67,6 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
-  perspective: 1200px;
-  perspective-origin: 50% 50%;
 }
 #map {
   width: 100%;
@@ -76,25 +74,30 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   position: absolute;
   top: 0;
   left: 0;
-  transform-origin: 50% 85%;
-  transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: transform 0.4s ease-out;
 }
-/* 3D Tilted Navigation Perspective (100% Full Screen, Zero Black Voids) */
+/* 3D Tilted Navigation Perspective Mode */
+body.tilted #map-viewport {
+  perspective: 900px;
+}
 body.tilted #map {
-  transform: translateY(-9%) rotateX(35deg) scale(1.95);
+  top: -20%;
+  height: 140%;
+  transform: rotateX(25deg);
+  transform-origin: 50% 65%;
 }
 body.tilted .mk {
-  transform: rotateX(-35deg);
+  transform: rotateX(-25deg);
   transform-origin: bottom center;
 }
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
   box-shadow: 0 4px 12px rgba(0,0,0,0.35); display: flex; align-items: center;
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
-.mk-driver { width: 36px; height: 36px; border-radius: 50%; background: #1a1a26;
-  border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
-  transform: rotate(0deg) !important; }
+.mk-driver { width: 44px; height: 44px; border-radius: 50%; background: #1a1a26;
+  border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  transition: transform 0.12s linear; transform-origin: 50% 50%; }
 </style>
 <script>
 ${LEAFLET_JS}
@@ -117,7 +120,8 @@ const markerB = L.marker([${initial.lat}, ${initial.lon}], {
   icon: L.divIcon({ className: 'mk mk-b', html: 'B', iconSize: [26, 26], iconAnchor: [13, 13] })
 });
 const markerDriver = L.marker([${initial.lat}, ${initial.lon}], {
-  icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [36, 36], iconAnchor: [18, 18] })
+  icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [44, 44], iconAnchor: [22, 22] }),
+  zIndexOffset: 1000
 });
 const routeLine = L.polyline([], { color: '#4f6600', weight: 6, opacity: 0.85 }).addTo(map);
 
@@ -129,22 +133,31 @@ var targetLon = ${initial.lon};
 var targetHeading = 0;
 var isAnimating = false;
 
-function updateMapTransform(heading) {
-  var mapEl = document.getElementById('map');
-  if (!mapEl) return;
-  if (document.body.classList.contains('tilted')) {
-    mapEl.style.transform = 'translateY(-8%) rotateX(32deg) rotateZ(' + (-heading) + 'deg) scale(3.5)';
-    var pins = document.querySelectorAll('.mk');
-    for (var i = 0; i < pins.length; i++) {
-      pins[i].style.transform = 'rotateZ(' + heading + 'deg) rotateX(-32deg)';
-    }
-  } else {
-    mapEl.style.transform = 'none';
-    var pins2 = document.querySelectorAll('.mk');
-    for (var j = 0; j < pins2.length; j++) {
-      pins2[j].style.transform = 'none';
+function updateDriverHeading(heading) {
+  var pin = document.querySelector('.mk-driver');
+  if (pin) {
+    var isTilted = document.body.classList.contains('tilted');
+    if (isTilted) {
+      pin.style.transform = 'rotateX(-25deg) rotateZ(' + heading + 'deg)';
+    } else {
+      pin.style.transform = 'rotate(' + heading + 'deg)';
     }
   }
+}
+
+if (window.DeviceOrientationEvent) {
+  window.addEventListener('deviceorientation', function(e) {
+    var compass = null;
+    if (typeof e.webkitCompassHeading !== 'undefined' && e.webkitCompassHeading !== null) {
+      compass = e.webkitCompassHeading;
+    } else if (e.alpha !== null && typeof e.alpha !== 'undefined') {
+      compass = (360 - e.alpha) % 360;
+    }
+    if (compass !== null && !isNaN(compass)) {
+      targetHeading = compass;
+      updateDriverHeading(compass);
+    }
+  }, true);
 }
 
 function startSmoothLoop() {
@@ -152,17 +165,14 @@ function startSmoothLoop() {
   isAnimating = true;
 
   function frame() {
-    var isTilted = document.body.classList.contains('tilted');
-    var step = isTilted ? 0.08 : 0.12;
-
+    var step = 0.15;
     var dLat = targetLat - curLat;
     var dLon = targetLon - curLon;
     var dHeading = (targetHeading - curHeading + 540) % 360 - 180;
 
-    if (Math.abs(dLat) > 0.0000001 || Math.abs(dLon) > 0.0000001 || Math.abs(dHeading) > 0.05) {
+    if (Math.abs(dLat) > 0.0000001 || Math.abs(dLon) > 0.0000001) {
       curLat += dLat * step;
       curLon += dLon * step;
-      curHeading = (curHeading + dHeading * step + 360) % 360;
 
       if (markerDriver) {
         markerDriver.setLatLng([curLat, curLon]);
@@ -171,11 +181,13 @@ function startSmoothLoop() {
       if (map) {
         map.panTo([curLat, curLon], { animate: false });
       }
-
-      if (isTilted) {
-        updateMapTransform(curHeading);
-      }
     }
+
+    if (Math.abs(dHeading) > 0.05) {
+      curHeading = (curHeading + dHeading * 0.2 + 360) % 360;
+      updateDriverHeading(curHeading);
+    }
+
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -207,10 +219,9 @@ window.setState = function (s) {
     if (map.getZoom() < 17) {
       map.setZoom(18);
     }
-    updateMapTransform(curHeading);
+    updateDriverHeading(curHeading);
   } else {
     document.body.classList.remove('tilted');
-    updateMapTransform(0);
   }
   if (s.route && s.route.length > 1) {
     routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
@@ -227,11 +238,11 @@ window.focusDriver = function (lng, lat) {
   if (map.getZoom() < 17) {
     map.setZoom(18);
   }
+  updateDriverHeading(curHeading);
 };
 
 window.focusOn = function (lng, lat) {
   document.body.classList.remove('tilted');
-  updateMapTransform(0);
   map.panTo([lat, lng], { animate: true, duration: 0.5 });
 };
 
