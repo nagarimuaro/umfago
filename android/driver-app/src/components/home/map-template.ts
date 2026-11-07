@@ -32,8 +32,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       height: 100%;
       position: relative;
       overflow: hidden;
-      perspective: 750px;
-      perspective-origin: 50% 65%;
+      perspective: 1200px;
+      perspective-origin: 50% 50%;
     }
 
     #map {
@@ -43,22 +43,22 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       top: 0;
       left: 0;
       background: #121517;
-      transform-origin: 50% 65%;
+      transform-origin: 50% 85%;
       transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1);
     }
 
-    /* 3D Tilted Cockpit Perspective View */
+    /* 3D Tilted Cockpit Perspective View (100% Full Screen, Zero Black Voids) */
     body.tilted #map {
-      transform: rotateX(55deg) scale(1.42);
+      transform: translateY(-9%) rotateX(35deg) scale(1.95);
     }
 
     /* Stand markers upright on tilted map */
     body.tilted .order-pin {
-      transform: rotateX(-55deg);
+      transform: rotateX(-35deg);
       transform-origin: bottom center;
     }
     body.tilted .surge-badge {
-      transform: rotateX(-55deg);
+      transform: rotateX(-35deg);
       transform-origin: bottom center;
     }
 

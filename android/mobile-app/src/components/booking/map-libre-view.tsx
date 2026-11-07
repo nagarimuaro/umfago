@@ -67,8 +67,8 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
-  perspective: 750px;
-  perspective-origin: 50% 65%;
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
 }
 #map {
   width: 100%;
@@ -76,15 +76,15 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   position: absolute;
   top: 0;
   left: 0;
-  transform-origin: 50% 65%;
+  transform-origin: 50% 85%;
   transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-/* 3D Tilted Navigation Perspective */
+/* 3D Tilted Navigation Perspective (100% Full Screen, Zero Black Voids) */
 body.tilted #map {
-  transform: rotateX(55deg) scale(1.42);
+  transform: translateY(-9%) rotateX(35deg) scale(1.95);
 }
 body.tilted .mk {
-  transform: rotateX(-50deg);
+  transform: rotateX(-35deg);
   transform-origin: bottom center;
 }
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
