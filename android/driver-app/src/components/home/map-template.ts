@@ -357,6 +357,11 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           var lPin = markerEl ? markerEl.querySelector('.driver-pin') : null;
           if (lPin) lPin.style.transform = 'rotate(' + state.driver.heading + 'deg)';
         }
+
+        // Saat perjalanan (jemput atau antar), kamera selalu pass tepat di atas motor lokasi driver
+        if (state.order && (state.order.step === 'heading_to_pickup' || state.order.step === 'in_trip')) {
+          leafletMap.setView([state.driver.lat, state.driver.lon], Math.max(leafletMap.getZoom(), 17), { animate: true, duration: 0.8 });
+        }
       }
     }
 
@@ -412,7 +417,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           leafletRouteLine.setLatLngs(latlngs);
 
           if (isHeading || isInTrip) {
-            leafletMap.panTo([state.driver.lat, state.driver.lon], { animate: true, duration: 0.8 });
+            leafletMap.setView([state.driver.lat, state.driver.lon], Math.max(leafletMap.getZoom(), 17), { animate: true, duration: 0.8 });
           } else {
             leafletMap.fitBounds(latlngs, { padding: [50, 50] });
           }

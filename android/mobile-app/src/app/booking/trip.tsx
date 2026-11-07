@@ -92,6 +92,25 @@ export default function TripScreen() {
     return () => clearInterval(interval);
   }, [status, pickupRouteCoords, eta]);
 
+  // Simulasi pergerakan driver mengantar ke tujuan (status: onTrip)
+  useEffect(() => {
+    const coords = route?.coordinates;
+    if (status !== 'onTrip' || !coords || coords.length === 0) return;
+
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+      stepIndex += 1;
+      if (stepIndex < coords.length) {
+        const [lon, lat] = coords[stepIndex];
+        setDriverPos({ lat, lon });
+      } else {
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [status, route?.coordinates]);
+
   const finish = () => {
     reset();
     router.dismissAll();

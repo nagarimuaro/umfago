@@ -101,12 +101,22 @@ map.on('moveend', () => {
 window.setState = function (s) {
   if (s.pickup) { markerA.setLatLng([s.pickup[1], s.pickup[0]]).addTo(map); } else { map.removeLayer(markerA); }
   if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
-  if (s.driver) { markerDriver.setLatLng([s.driver[1], s.driver[0]]).addTo(map); } else { map.removeLayer(markerDriver); }
+  if (s.driver) {
+    markerDriver.setLatLng([s.driver[1], s.driver[0]]).addTo(map);
+    // Kamera pass tepat di atas motor driver saat perjalanan
+    map.panTo([s.driver[1], s.driver[0]], { animate: true, duration: 0.8 });
+  } else {
+    map.removeLayer(markerDriver);
+  }
   if (s.route && s.route.length > 1) {
     routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
   } else {
     routeLine.setLatLngs([]);
   }
+};
+
+window.focusDriver = function (lng, lat) {
+  map.setView([lat, lng], Math.max(map.getZoom(), 17), { animate: true, duration: 0.8 });
 };
 
 window.focusOn = function (lng, lat) {
@@ -174,16 +184,22 @@ setTimeout(function() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, interactive, pinLocked, activeTarget, inject]);
 
-  // Peta non-interaktif (searching/trip): tampilkan seluruh rute atau titik driver + jemput
+  // Peta non-interaktif (searching/trip):
+  // Jika sedang perjalanan (ada driverCoords), kamera selalu pass tepat di atas motor lokasi driver!
   useEffect(() => {
     if (!ready || interactive) return;
+
+    if (driverCoords) {
+      inject(`window.focusDriver(${driverCoords.lon}, ${driverCoords.lat})`);
+      return;
+    }
+
     const effectiveRoute = customRouteCoords ?? coords;
     if (effectiveRoute && effectiveRoute.length > 1) {
       inject(`window.fitAll(${JSON.stringify(effectiveRoute)})`);
       return;
     }
     const points: [number, number][] = [];
-    if (driverCoords) points.push([driverCoords.lon, driverCoords.lat]);
     if (pLon != null && pLat != null) points.push([pLon, pLat]);
     if (dLon != null && dLat != null) points.push([dLon, dLat]);
     if (points.length > 0) {
