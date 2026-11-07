@@ -5,6 +5,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { DSText } from '@/components/ds/ds-text';
 import { Icon } from '@/components/ds/icon';
+import { LEAFLET_CSS, LEAFLET_JS } from '@/constants/leaflet-bundle';
 import { Overlay, Radius, Sizes, Spacing } from '@/constants/design-system';
 import { useBooking } from '@/hooks/use-booking';
 
@@ -57,9 +58,8 @@ export function MapLibreOSMView({
 <html><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <style>
+${LEAFLET_CSS}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body, html, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
@@ -70,31 +70,28 @@ body, html, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e
   border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
   display: flex; align-items: center; justify-content: center; font-size: 18px; }
 </style>
+<script>
+${LEAFLET_JS}
+</script>
 </head><body>
 <div id="map"></div>
 <script>
-const map = new maplibregl.Map({
-  container: 'map',
-  style: {
-    version: 8,
-    sources: { osm: { type: 'raster', tileSize: 256, attribution: '&copy; OpenStreetMap',
-      tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'] } },
-    layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }]
-  },
-  center: [${initial.lon}, ${initial.lat}],
-  zoom: 16,
-  attributionControl: false
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 16);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  subdomains: ['a', 'b', 'c']
+}).addTo(map);
+
+const markerA = L.marker([${initial.lat}, ${initial.lon}], {
+  icon: L.divIcon({ className: 'mk mk-a', html: 'A', iconSize: [26, 26], iconAnchor: [13, 13] })
 });
-
-function mk(cls, txt) { const el = document.createElement('div'); el.className = 'mk ' + cls; el.innerText = txt; return el; }
-function mkDriver(icon) { const el = document.createElement('div'); el.className = 'mk-driver'; el.innerText = icon || '🏍️'; return el; }
-
-const markerA = new maplibregl.Marker({ element: mk('mk-a', 'A') });
-const markerB = new maplibregl.Marker({ element: mk('mk-b', 'B') });
-const markerDriver = new maplibregl.Marker({ element: mkDriver('${driverVehicleType === 'car' ? '🚗' : '🏍️'}') });
-const empty = { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } };
+const markerB = L.marker([${initial.lat}, ${initial.lon}], {
+  icon: L.divIcon({ className: 'mk mk-b', html: 'B', iconSize: [26, 26], iconAnchor: [13, 13] })
+});
+const markerDriver = L.marker([${initial.lat}, ${initial.lon}], {
+  icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [36, 36], iconAnchor: [18, 18] })
+});
+const routeLine = L.polyline([], { color: '#4f6600', weight: 6, opacity: 0.85 }).addTo(map);
 
 map.on('moveend', () => {
   const c = map.getCenter();
@@ -102,27 +99,29 @@ map.on('moveend', () => {
 });
 
 window.setState = function (s) {
-  if (s.pickup) markerA.setLngLat(s.pickup).addTo(map); else markerA.remove();
-  if (s.dest) markerB.setLngLat(s.dest).addTo(map); else markerB.remove();
-  if (s.driver) markerDriver.setLngLat(s.driver).addTo(map); else markerDriver.remove();
-  const src = map.getSource('route');
-  if (src) src.setData(s.route && s.route.length > 1
-    ? { type: 'Feature', geometry: { type: 'LineString', coordinates: s.route } } : empty);
-};
-window.focusOn = function (lng, lat) { map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 15) }); };
-window.fitAll = function (coords) {
-  const b = new maplibregl.LngLatBounds();
-  coords.forEach((c) => b.extend(c));
-  map.fitBounds(b, { padding: 60, maxZoom: 16 });
+  if (s.pickup) { markerA.setLatLng([s.pickup[1], s.pickup[0]]).addTo(map); } else { map.removeLayer(markerA); }
+  if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
+  if (s.driver) { markerDriver.setLatLng([s.driver[1], s.driver[0]]).addTo(map); } else { map.removeLayer(markerDriver); }
+  if (s.route && s.route.length > 1) {
+    routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
+  } else {
+    routeLine.setLatLngs([]);
+  }
 };
 
-map.on('load', () => {
-  map.addSource('route', { type: 'geojson', data: empty });
-  map.addLayer({ id: 'route', type: 'line', source: 'route',
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#4f6600', 'line-width': 6, 'line-opacity': 0.85 } });
+window.focusOn = function (lng, lat) {
+  map.panTo([lat, lng], { animate: true, duration: 0.5 });
+};
+
+window.fitAll = function (coords) {
+  if (!coords || coords.length === 0) return;
+  const latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+  map.fitBounds(latlngs, { padding: [60, 60], maxZoom: 16 });
+};
+
+setTimeout(function() {
   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
-});
+}, 100);
 </script>
 </body></html>`,
     [initial, driverVehicleType]

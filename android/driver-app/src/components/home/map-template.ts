@@ -1,9 +1,11 @@
 import { DRIVER_ICON_DATA_URI } from '../../constants/driver-asset';
+import { LEAFLET_CSS, LEAFLET_JS } from '../../constants/leaflet-bundle';
 
 /**
  * Shared HTML Generator for OpenStreetMap navigation view.
- * Features dual-engine support: MapLibre GL JS with 3D cockpit perspective,
- * with automatic, seamless fallback to Leaflet DOM renderer if WebGL is unavailable.
+ * Powered by local bundled Leaflet library (zero 3rd-party CDN network dependency).
+ * 100% reliable DOM-based rendering, custom driver marker with heading rotation,
+ * dark mode raster OSM tiles, and neon route polylines.
  */
 export function getDriverMapHtml(initialLat: number, initialLon: number): string {
   return `<!DOCTYPE html>
@@ -11,14 +13,15 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <!-- MapLibre GL CSS -->
-  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-  <!-- Leaflet CSS (WebGL Fallback) -->
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+  <!-- Local Bundled Leaflet Styles (Zero CDN) -->
+  <style>
+    ${LEAFLET_CSS}
+  </style>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Local Bundled Leaflet Script (Zero CDN) -->
+  <script>
+    ${LEAFLET_JS}
+  </script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
