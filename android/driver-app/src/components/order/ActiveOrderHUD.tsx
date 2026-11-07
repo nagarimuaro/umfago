@@ -20,22 +20,16 @@ interface ActiveOrderHUDProps {
   onOpenNavigation?: () => void;
 }
 
-export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOpenNavigation }) => {
-  const { currentOrder, advanceOrderStep, cancelActiveOrder } = useDriver();
+export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat }) => {
+  const { currentOrder, advanceOrderStep } = useDriver();
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const dragStartY = useRef<number | null>(null);
 
   if (!currentOrder) return null;
 
   const isHeadingToPickup = currentOrder.step === 'heading_to_pickup';
   const isArrivedAtPickup = currentOrder.step === 'arrived_at_pickup';
   const isInTrip = currentOrder.step === 'in_trip';
-
-  const getStepTitle = () => {
-    if (isHeadingToPickup) return 'Menuju Penjemputan';
-    if (isArrivedAtPickup) return 'Tiba di Penjemputan';
-    if (isInTrip) return 'Mengantar ke Destinasi';
-    return 'Pesanan Berlangsung';
-  };
 
   const getSwipeConfig = () => {
     if (isHeadingToPickup) {
@@ -77,36 +71,15 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
     });
   };
 
-  const handleOpenMaps = () => {
-    const target = isHeadingToPickup ? currentOrder.pickup : currentOrder.destination;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Navigasi', `Menuju: ${target.address}`);
-    });
-  };
-
-  const handleCancel = () => {
-    Alert.alert(
-      'Batalkan Pesanan?',
-      'Apakah Anda yakin ingin membatalkan pesanan ini? Pembatalan dapat mempengaruhi performa driver.',
-      [
-        { text: 'Tidak', style: 'cancel' },
-        { text: 'Ya, Batalkan', style: 'destructive', onPress: () => cancelActiveOrder('Driver request') },
-      ]
-    );
-  };
-
-  // PanResponder to swipe up to expand, swipe down to collapse
+  // PanResponder to swipe up to expand, swipe down to collapse (down to swipe button)
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 10,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 8 && Math.abs(g.dy) > Math.abs(g.dx),
       onPanResponderRelease: (_, g) => {
-        if (g.dy < -20) {
-          // Swipe up -> Expand
+        if (g.dy < -15) {
           setIsExpanded(true);
-        } else if (g.dy > 20) {
-          // Swipe down -> Collapse
+        } else if (g.dy > 15) {
           setIsExpanded(false);
         }
       },
@@ -116,11 +89,29 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
   const swipeConfig = getSwipeConfig();
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       {/* Top Swipeable Grabber Handle */}
       <View
-        {...panResponder.panHandlers}
         style={styles.handleArea}
+        // Support mouse drag on web as well as touch
+        {...(Platform.OS === 'web'
+          ? {
+              onMouseDown: (e: any) => {
+                dragStartY.current = e.clientY;
+              },
+              onMouseUp: (e: any) => {
+                if (dragStartY.current !== null) {
+                  const dy = e.clientY - dragStartY.current;
+                  dragStartY.current = null;
+                  if (dy < -15) {
+                    setIsExpanded(true);
+                  } else if (dy > 15) {
+                    setIsExpanded(false);
+                  }
+                }
+              },
+            }
+          : {})}
       >
         <TouchableOpacity
           activeOpacity={0.7}
@@ -135,56 +126,23 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
               color={colors.textSecondary}
             />
             <Text style={styles.expandHintText}>
-              {isExpanded ? 'Geser ke bawah untuk minimalkan' : 'Geser ke atas untuk detail lengkap'}
+              {isExpanded ? 'Geser ke bawah untuk minimalkan' : 'Geser ke atas untuk buka detail'}
             </Text>
           </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Turn-by-Turn Instruction Strip */}
-      <View style={styles.guidanceStrip}>
-        <View style={styles.guidanceLeft}>
-          <MaterialIcons
-            name={isInTrip ? 'navigation' : isArrivedAtPickup ? 'place' : 'turn-slight-right'}
-            size={24}
-            color={swipeConfig.knobColor}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.guidanceDistance, { color: swipeConfig.knobColor }]}>
-              {isInTrip
-                ? `${currentOrder.distanceKm} km Menuju Alamat Tujuan`
-                : isArrivedAtPickup
-                ? 'Tiba di Penjemputan'
-                : currentOrder.distanceKm >= 1
-                ? `${currentOrder.distanceKm} km Menuju Titik Jemput`
-                : `${Math.round(currentOrder.distanceKm * 1000)} m Menuju Titik Jemput`}
-            </Text>
-            <Text style={styles.guidanceStreet} numberOfLines={1}>
-              {isInTrip ? currentOrder.destination.address : currentOrder.pickup.address}
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity activeOpacity={0.8} onPress={handleOpenMaps} style={styles.mapsBtn}>
-          <Ionicons name="navigate" size={15} color={colors.black} />
-          <Text style={styles.mapsText}>Peta</Text>
         </TouchableOpacity>
       </View>
 
       {/* HUD Body */}
       <View style={styles.hudBody}>
-        {/* Step Indicator Header */}
-        <View style={styles.statusRow}>
-          <View style={styles.stepBadge}>
-            <View style={[styles.dotPulse, { backgroundColor: swipeConfig.knobColor }]} />
-            <Text style={styles.stepTitle}>{getStepTitle()}</Text>
-          </View>
-          <Text style={styles.orderAmount}>{formatRupiah(currentOrder.driverEarnings)}</Text>
-        </View>
-
-        {/* Detailed Sections (Shown when card is expanded) */}
+        {/* Detailed Sections (Hidden when collapsed down to the swipe button) */}
         {isExpanded && (
           <>
+            {/* Earnings Row */}
+            <View style={styles.statusRow}>
+              <Text style={styles.earningsLabel}>Pendapatan Bersih</Text>
+              <Text style={styles.orderAmount}>{formatRupiah(currentOrder.driverEarnings)}</Text>
+            </View>
+
             {/* Customer Info & Contact Row */}
             <View style={styles.customerBox}>
               <View style={styles.customerLeft}>
@@ -237,12 +195,8 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat, onOp
           </>
         )}
 
-        {/* Action Row: Cancel Button & Swipe to Advance Slider */}
+        {/* Action Row: Only Swipe to Advance Slider (Cancel Button Removed Once Order Accepted) */}
         <View style={styles.buttonRow}>
-          <TouchableOpacity activeOpacity={0.8} onPress={handleCancel} style={styles.cancelBtn}>
-            <Ionicons name="close" size={20} color="#FF8A80" />
-          </TouchableOpacity>
-
           <View style={styles.swipeSliderContainer}>
             <SwipeToAccept
               onAccept={advanceOrderStep}
@@ -350,24 +304,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  stepBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#222525',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: '#333838',
-  },
-  dotPulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  stepTitle: {
-    color: colors.white,
+  earningsLabel: {
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,

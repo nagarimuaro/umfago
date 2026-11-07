@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { DriverHeader } from '../../components/home/DriverHeader';
@@ -8,7 +8,7 @@ import { OnlineStatusToggle } from '../../components/home/OnlineStatusToggle';
 import { IncomingOrderModal } from '../../components/order/IncomingOrderModal';
 import { ActiveOrderHUD } from '../../components/order/ActiveOrderHUD';
 import { useDriver } from '../../hooks/use-driver';
-import { spacing } from '../../constants/theme';
+import { colors, rounded, spacing } from '../../constants/theme';
 import { SurgeArea } from '../../types/driver';
 
 export default function DriverHomeScreen() {
@@ -23,6 +23,21 @@ export default function DriverHomeScreen() {
   } = useDriver();
 
   const [selectedSurge, setSelectedSurge] = useState<SurgeArea>(surgeAreas[0]);
+
+  const getStepTitle = () => {
+    if (!currentOrder) return '';
+    if (currentOrder.step === 'heading_to_pickup') return 'Menuju Penjemputan';
+    if (currentOrder.step === 'arrived_at_pickup') return 'Tiba di Penjemputan';
+    if (currentOrder.step === 'in_trip') return 'Mengantar ke Destinasi';
+    return 'Pesanan Berlangsung';
+  };
+
+  const getStepColor = () => {
+    if (!currentOrder) return colors.primary;
+    if (currentOrder.step === 'arrived_at_pickup') return '#00E676';
+    if (currentOrder.step === 'in_trip') return '#FFD600';
+    return colors.primary;
+  };
 
   const handleSelectSurge = (surge: SurgeArea) => {
     setSelectedSurge(surge);
@@ -63,12 +78,22 @@ export default function DriverHomeScreen() {
           onSimulateOrder={simulateIncomingOrder}
         />
 
-        {/* Floating Controls Stack (Over the Radar Map) */}
+        {/* Floating Controls Stack (Over the Radar Map when Idle) */}
         {!currentOrder && (
           <View style={styles.floatingStack} pointerEvents="box-none">
             {/* Online / Offline Quick Slider with Live GPS Coordinates */}
             <View pointerEvents="auto">
               <OnlineStatusToggle />
+            </View>
+          </View>
+        )}
+
+        {/* Floating Step Status Badge Inside the Map (When Order is Active) */}
+        {currentOrder && (
+          <View style={styles.mapStepBadgeWrapper} pointerEvents="none">
+            <View style={styles.stepBadge}>
+              <View style={[styles.dotPulse, { backgroundColor: getStepColor() }]} />
+              <Text style={styles.stepTitle}>{getStepTitle()}</Text>
             </View>
           </View>
         )}
@@ -110,6 +135,39 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     gap: spacing.sm,
     zIndex: 30,
+  },
+  mapStepBadgeWrapper: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.lg,
+    zIndex: 30,
+  },
+  stepBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(26, 28, 28, 0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: rounded.full,
+    borderWidth: 1,
+    borderColor: '#333838',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  dotPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  stepTitle: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   activeOrderWrapper: {
     position: 'absolute',

@@ -33,7 +33,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       position: relative;
       overflow: hidden;
       background: #121517;
-      perspective: 900px;
+      perspective: 700px;
     }
 
     #map {
@@ -41,15 +41,14 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       width: 240%;
       height: 240%;
       left: -70%;
-      top: -52%;
+      top: -54%;
       background: #121517;
       transform-origin: 50% 50%;
       will-change: transform;
     }
 
     /* Stand markers upright on tilted map */
-    body.tilted .order-pin,
-    body.tilted .surge-badge {
+    body.tilted .order-pin {
       transform-origin: bottom center;
     }
 
@@ -62,8 +61,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       z-index: 999999 !important;
     }
     .driver-marker {
-      width: 56px;
-      height: 56px;
+      width: 78px;
+      height: 78px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -73,28 +72,28 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
     .driver-pulse {
       position: absolute;
-      width: 52px;
-      height: 52px;
+      width: 68px;
+      height: 68px;
       border-radius: 50%;
       background: rgba(200, 255, 0, 0.28);
-      border: 2px solid #C8FF00;
+      border: 2.5px solid #C8FF00;
       animation: pulse 2.2s infinite ease-out;
       pointer-events: none;
     }
     @keyframes pulse {
-      0% { transform: scale(0.6); opacity: 0.95; }
-      100% { transform: scale(1.85); opacity: 0; }
+      0% { transform: scale(0.65); opacity: 0.95; }
+      100% { transform: scale(1.75); opacity: 0; }
     }
     .driver-pin {
-      width: 50px;
-      height: 50px;
+      width: 68px;
+      height: 68px;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       z-index: 999999 !important;
-      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.85));
-      transition: transform 0.12s linear;
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,0.9));
+      transition: transform 0.08s linear;
       transform-origin: 50% 50%;
     }
     .driver-img {
@@ -106,60 +105,40 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
     .driver-arrow {
       position: absolute;
-      top: -7px;
+      top: -9px;
       width: 0;
       height: 0;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 9px solid #C8FF00;
-      filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 12px solid #C8FF00;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.85));
     }
 
-    /* Surge Hotspot Area Markers */
+    /* Surge Demand Heatmap Zones */
     .surge-marker {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      cursor: pointer;
-    }
-    .surge-badge {
-      background: rgba(27, 28, 28, 0.95);
-      border: 1.5px solid #C8FF00;
-      padding: 4px 8px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-      white-space: nowrap;
-    }
-    .surge-badge span {
-      color: #FFFFFF;
-      font-size: 11px;
-      font-weight: 700;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .surge-pill {
-      background: #C8FF00;
-      color: #121212;
-      font-size: 10px;
-      font-weight: 800;
-      padding: 1px 5px;
-      border-radius: 6px;
+      justify-content: center;
+      pointer-events: none;
     }
     .surge-ring {
-      width: 76px;
-      height: 76px;
+      width: 160px;
+      height: 160px;
       border-radius: 50%;
-      border: 2px dashed rgba(200, 255, 0, 0.65);
-      background: rgba(200, 255, 0, 0.1);
-      margin-top: -18px;
+      background: radial-gradient(
+        circle,
+        rgba(255, 59, 48, 0.55) 0%,
+        rgba(255, 149, 0, 0.36) 36%,
+        rgba(200, 255, 0, 0.18) 68%,
+        rgba(200, 255, 0, 0) 100%
+      );
+      filter: blur(6px);
       pointer-events: none;
-      animation: surgePulse 2.8s infinite ease-in-out;
+      animation: surgePulse 3s infinite ease-in-out;
     }
     @keyframes surgePulse {
-      0%, 100% { transform: scale(0.95); opacity: 0.6; }
-      50% { transform: scale(1.15); opacity: 0.95; }
+      0%, 100% { transform: scale(0.92); opacity: 0.75; }
+      50% { transform: scale(1.12); opacity: 1; }
     }
 
     /* Active Order Markers */
@@ -301,7 +280,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     var mapEl = document.getElementById('map');
     var driverPin = document.querySelector('.driver-pin');
     var isTilted = document.body.classList.contains('tilted');
-    var tiltDeg = isTilted ? 24 : 0;
+    var tiltDeg = isTilted ? 34 : 0;
 
     if (isNavigating) {
       // 1. Heading-Up Mode: Map rotates by -heading so the route and road always go straight UP
@@ -324,7 +303,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       }
 
       // 3. Counter-rotate pins so their labels stay horizontal and readable
-      var orderPins = document.querySelectorAll('.order-pin, .surge-badge');
+      var orderPins = document.querySelectorAll('.order-pin');
       for (var i = 0; i < orderPins.length; i++) {
         if (tiltDeg > 0) {
           orderPins[i].style.transform = 'rotateX(-' + tiltDeg + 'deg) rotateZ(' + heading + 'deg)';
@@ -353,7 +332,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       }
 
       // 3. Upright badges
-      var pins = document.querySelectorAll('.order-pin, .surge-badge');
+      var pins = document.querySelectorAll('.order-pin');
       for (var j = 0; j < pins.length; j++) {
         if (tiltDeg > 0) {
           pins[j].style.transform = 'rotateX(-' + tiltDeg + 'deg)';
@@ -525,10 +504,17 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   var tileLayer = null;
 
   function initLeaflet() {
-    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 17);
+    leafletMap = L.map('map', {
+      zoomControl: false,
+      attributionControl: false,
+      zoomSnap: 0.1,
+      zoomDelta: 0.5,
+      maxZoom: 20
+    }).setView([currentLat, currentLon], 17.5);
     
     tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 18,
+      maxNativeZoom: 18,
+      maxZoom: 20,
       keepBuffer: 12,
       updateInterval: 50,
       updateWhenIdle: false,
@@ -538,8 +524,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     var driverIcon = L.divIcon({
       className: 'driver-marker',
       html: buildDriverHtml(),
-      iconSize: [56, 56],
-      iconAnchor: [28, 28]
+      iconSize: [78, 78],
+      iconAnchor: [39, 39]
     });
     driverMarker = L.marker([currentLat, currentLon], { icon: driverIcon, zIndexOffset: 999999 }).addTo(leafletMap);
 
@@ -559,8 +545,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     });
     destMarker = L.marker([currentLat, currentLon], { icon: destIcon });
 
-    leafletGlowLine = L.polyline([], { color: '#C8FF00', weight: 10, opacity: 0.35 }).addTo(leafletMap);
-    leafletRouteLine = L.polyline([], { color: '#C8FF00', weight: 5, opacity: 0.95 }).addTo(leafletMap);
+    leafletGlowLine = L.polyline([], { color: '#C8FF00', weight: 18, opacity: 0.35 }).addTo(leafletMap);
+    leafletRouteLine = L.polyline([], { color: '#C8FF00', weight: 9, opacity: 0.95 }).addTo(leafletMap);
 
     setTimeout(function() {
       sendApp({ type: 'ready', engine: 'leaflet' });
@@ -589,8 +575,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         isNavigating = true;
         document.body.classList.add('tilted');
         document.body.classList.add('navigating');
-        if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
-          leafletMap.setZoom(17);
+        if (leafletMap && leafletMap.getZoom() < 18.8) {
+          leafletMap.setZoom(19);
         }
       } else {
         isNavigating = false;
@@ -628,8 +614,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
             // Smooth Cockpit 3D navigation follow
             maplibreMap.easeTo({
               center: [state.driver.lon, state.driver.lat],
-              zoom: 16.5,
-              pitch: 45,
+              zoom: 18.5,
+              pitch: 55,
               bearing: state.driver.heading || 0,
               duration: 800
             });
@@ -663,8 +649,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 
         if (isHeading || isInTrip) {
           document.body.classList.add('tilted');
-          if (leafletMap && (leafletMap.getZoom() < 16.5 || leafletMap.getZoom() > 17.5)) {
-            leafletMap.setZoom(17);
+          if (leafletMap && leafletMap.getZoom() < 18.8) {
+            leafletMap.setZoom(19);
           }
         }
       }
@@ -684,10 +670,10 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       }
     }
 
-    // 3. Update Surge Hotspots
+    // 3. Update Surge Hotspots (Pure Heatmap Glow)
     if (state.surges && surgeMarkers.length === 0) {
       state.surges.forEach(function(s) {
-        var surgeHtml = '<div class="surge-badge"><span>🔥 ' + s.name.split('&')[0] + '</span><div class="surge-pill">' + s.multiplier + 'x</div></div><div class="surge-ring"></div>';
+        var surgeHtml = '<div class="surge-ring"></div>';
 
         if (engine === 'maplibre' && maplibreMap) {
           var el2 = document.createElement('div');
@@ -703,8 +689,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           var sIcon = L.divIcon({
             className: 'surge-marker',
             html: surgeHtml,
-            iconSize: [120, 40],
-            iconAnchor: [60, 56]
+            iconSize: [160, 160],
+            iconAnchor: [80, 80]
           });
           var lm = L.marker([s.latitude, s.longitude], { icon: sIcon, zIndexOffset: 100 }).addTo(leafletMap);
           lm.on('click', function() {
@@ -759,14 +745,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   window.toggleNightMode = function(enabled) {
     if (enabled) {
       document.body.classList.add('night-mode');
-      if (tileLayer) {
-        tileLayer.setUrl('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}');
-      }
     } else {
       document.body.classList.remove('night-mode');
-      if (tileLayer) {
-        tileLayer.setUrl('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
-      }
     }
   };
 

@@ -67,14 +67,14 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
-  perspective: 900px;
+  perspective: 700px;
 }
 #map {
   position: absolute;
   width: 240%;
   height: 240%;
   left: -70%;
-  top: -52%;
+  top: -54%;
   background: #e5e7eb;
   transform-origin: 50% 50%;
   will-change: transform;
@@ -87,9 +87,9 @@ body.tilted .mk {
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
 .leaflet-marker-pane .mk-driver { z-index: 999999 !important; }
-.mk-driver { width: 44px; height: 44px; border-radius: 50%; background: #1a1a26;
-  border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
-  display: flex; align-items: center; justify-content: center; font-size: 22px;
+.mk-driver { width: 58px; height: 58px; border-radius: 50%; background: #1a1a26;
+  border: 3.5px solid #c8ff00; box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; font-size: 28px;
   transform-origin: 50% 50%; z-index: 999999 !important; }
 </style>
 <script>
@@ -100,9 +100,10 @@ ${LEAFLET_JS}
   <div id="map"></div>
 </div>
 <script>
-const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 17);
+const map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0.1, zoomDelta: 0.5, maxZoom: 20 }).setView([${initial.lat}, ${initial.lon}], 17.5);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-  maxZoom: 18,
+  maxNativeZoom: 18,
+  maxZoom: 20,
   keepBuffer: 12,
   updateInterval: 50,
   updateWhenIdle: false,
@@ -116,10 +117,10 @@ const markerB = L.marker([${initial.lat}, ${initial.lon}], {
   icon: L.divIcon({ className: 'mk mk-b', html: 'B', iconSize: [26, 26], iconAnchor: [13, 13] })
 });
 const markerDriver = L.marker([${initial.lat}, ${initial.lon}], {
-  icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [44, 44], iconAnchor: [22, 22] }),
+  icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [58, 58], iconAnchor: [29, 29] }),
   zIndexOffset: 999999
 });
-const routeLine = L.polyline([], { color: '#4f6600', weight: 6, opacity: 0.85 }).addTo(map);
+const routeLine = L.polyline([], { color: '#4f6600', weight: 9, opacity: 0.9 }).addTo(map);
 
 var curLat = ${initial.lat};
 var curLon = ${initial.lon};
@@ -189,7 +190,7 @@ function updateNavigationOrientation(heading) {
   var mapEl = document.getElementById('map');
   var pin = document.querySelector('.mk-driver');
   var isTilted = document.body.classList.contains('tilted');
-  var tiltDeg = isTilted ? 24 : 0;
+  var tiltDeg = isTilted ? 34 : 0;
 
   if (isTrackingDriver) {
     if (mapEl) {
@@ -324,8 +325,8 @@ window.setState = function (s) {
 
     startSmoothLoop();
     document.body.classList.add('tilted');
-    if (map.getZoom() < 16.5 || map.getZoom() > 17.5) {
-      map.setZoom(17);
+    if (map.getZoom() < 18.8) {
+      map.setZoom(19);
     }
     updateNavigationOrientation(curHeading);
   } else {
