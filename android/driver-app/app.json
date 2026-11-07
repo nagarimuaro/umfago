@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "UmfaGo Driver",
+    "slug": "umfago-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "umfagodriver",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "icon": "./assets/expo.icon"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#131313",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.fazalabs.umfagodriver"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Izinkan UmfaGo Driver mengakses lokasi GPS Anda untuk menerima dan menavigasi order perjalanan."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#131313",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5fd4a5ed-d745-4ebf-a49f-e83edd565113"
+      }
+    }
+  }
+}
