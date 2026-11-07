@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   floatingControls: {
     position: 'absolute',
     right: spacing.lg,
-    bottom: 270,
+    bottom: 24,
     gap: spacing.sm,
     alignItems: 'flex-end',
     zIndex: 20,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   locationHud: {
     position: 'absolute',
     left: spacing.lg,
-    bottom: 275,
+    bottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -247,3 +247,4 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
 });
+

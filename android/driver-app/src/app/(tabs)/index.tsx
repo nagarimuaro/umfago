@@ -6,7 +6,6 @@ import { DriverHeader } from '../../components/home/DriverHeader';
 import { RadarMapView } from '../../components/home/RadarMapView';
 import { OnlineStatusToggle } from '../../components/home/OnlineStatusToggle';
 import { SurgeAlertCard } from '../../components/home/SurgeAlertCard';
-import { EarningsCard } from '../../components/home/EarningsCard';
 import { IncomingOrderModal } from '../../components/order/IncomingOrderModal';
 import { ActiveOrderHUD } from '../../components/order/ActiveOrderHUD';
 import { useDriver } from '../../hooks/use-driver';
@@ -79,14 +78,6 @@ export default function DriverHomeScreen() {
                 <SurgeAlertCard surge={selectedSurge} onPressNavigate={handleSelectSurge} />
               </View>
             )}
-
-            {/* Shift Earnings Bento Card */}
-            <View pointerEvents="auto">
-              <EarningsCard
-                onPressWallet={() => router.push('/shift')}
-                onPressShiftSummary={() => router.push('/shift')}
-              />
-            </View>
           </View>
         )}
 
