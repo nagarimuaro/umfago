@@ -61,7 +61,32 @@ export function MapLibreOSMView({
 <style>
 ${LEAFLET_CSS}
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body, html, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
+body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
+#map-viewport {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  perspective: 750px;
+  perspective-origin: 50% 65%;
+}
+#map {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 50% 65%;
+  transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+/* 3D Tilted Navigation Perspective */
+body.tilted #map {
+  transform: rotateX(55deg) scale(1.42);
+}
+body.tilted .mk {
+  transform: rotateX(-50deg);
+  transform-origin: bottom center;
+}
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
   box-shadow: 0 4px 12px rgba(0,0,0,0.35); display: flex; align-items: center;
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
@@ -74,7 +99,9 @@ body, html, #map { width: 100%; height: 100%; overflow: hidden; background: #e5e
 ${LEAFLET_JS}
 </script>
 </head><body>
-<div id="map"></div>
+<div id="map-viewport">
+  <div id="map"></div>
+</div>
 <script>
 const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 16);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -103,10 +130,12 @@ window.setState = function (s) {
   if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
   if (s.driver) {
     markerDriver.setLatLng([s.driver[1], s.driver[0]]).addTo(map);
-    // Kamera pass tepat di atas motor driver saat perjalanan
-    map.panTo([s.driver[1], s.driver[0]], { animate: true, duration: 0.8 });
+    // Kamera miring 3D pass dekat di atas motor driver saat perjalanan (zoom 18.5)
+    document.body.classList.add('tilted');
+    map.setView([s.driver[1], s.driver[0]], 18.5, { animate: true, duration: 0.8 });
   } else {
     map.removeLayer(markerDriver);
+    document.body.classList.remove('tilted');
   }
   if (s.route && s.route.length > 1) {
     routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
@@ -116,10 +145,12 @@ window.setState = function (s) {
 };
 
 window.focusDriver = function (lng, lat) {
-  map.setView([lat, lng], Math.max(map.getZoom(), 17), { animate: true, duration: 0.8 });
+  document.body.classList.add('tilted');
+  map.setView([lat, lng], 18.5, { animate: true, duration: 0.8 });
 };
 
 window.focusOn = function (lng, lat) {
+  document.body.classList.remove('tilted');
   map.panTo([lat, lng], { animate: true, duration: 0.5 });
 };
 

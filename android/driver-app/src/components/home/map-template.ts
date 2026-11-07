@@ -25,7 +25,42 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; overflow: hidden; background: #121517; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #121517; }
+
+    #map-viewport {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      perspective: 750px;
+      perspective-origin: 50% 65%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: #121517;
+      transform-origin: 50% 65%;
+      transition: transform 0.65s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+
+    /* 3D Tilted Cockpit Perspective View */
+    body.tilted #map {
+      transform: rotateX(55deg) scale(1.42);
+    }
+
+    /* Stand markers upright on tilted map */
+    body.tilted .order-pin {
+      transform: rotateX(-55deg);
+      transform-origin: bottom center;
+    }
+    body.tilted .surge-badge {
+      transform: rotateX(-55deg);
+      transform-origin: bottom center;
+    }
 
     /* Dark Mode Filter for OpenStreetMap Raster Tiles */
     body.night-mode #map { background: #121517; }
@@ -157,7 +192,9 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   </style>
 </head>
 <body class="night-mode">
-<div id="map"></div>
+<div id="map-viewport">
+  <div id="map"></div>
+</div>
 <script>
   function sendApp(msg) {
     var data = typeof msg === 'string' ? msg : JSON.stringify(msg);
@@ -358,9 +395,12 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           if (lPin) lPin.style.transform = 'rotate(' + state.driver.heading + 'deg)';
         }
 
-        // Saat perjalanan (jemput atau antar), kamera selalu pass tepat di atas motor lokasi driver
+        // Saat perjalanan (jemput atau antar), kamera selalu miring 3D dan pass dekat di atas motor (zoom 18.5)
         if (state.order && (state.order.step === 'heading_to_pickup' || state.order.step === 'in_trip')) {
-          leafletMap.setView([state.driver.lat, state.driver.lon], Math.max(leafletMap.getZoom(), 17), { animate: true, duration: 0.8 });
+          document.body.classList.add('tilted');
+          leafletMap.setView([state.driver.lat, state.driver.lon], 18.5, { animate: true, duration: 0.8 });
+        } else if (!state.order) {
+          document.body.classList.remove('tilted');
         }
       }
     }
@@ -417,8 +457,10 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
           leafletRouteLine.setLatLngs(latlngs);
 
           if (isHeading || isInTrip) {
-            leafletMap.setView([state.driver.lat, state.driver.lon], Math.max(leafletMap.getZoom(), 17), { animate: true, duration: 0.8 });
+            document.body.classList.add('tilted');
+            leafletMap.setView([state.driver.lat, state.driver.lon], 18.5, { animate: true, duration: 0.8 });
           } else {
+            document.body.classList.remove('tilted');
             leafletMap.fitBounds(latlngs, { padding: [50, 50] });
           }
         }
@@ -483,10 +525,17 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       if (is3D) {
         maplibreMap.easeTo({ pitch: 0, bearing: 0, zoom: 15.5 });
       } else {
-        maplibreMap.easeTo({ pitch: 55, bearing: heading || 45, center: [lon, lat], zoom: 17 });
+        maplibreMap.easeTo({ pitch: 55, bearing: heading || 45, center: [lon, lat], zoom: 18.5 });
       }
     } else if (engine === 'leaflet' && leafletMap) {
-      leafletMap.setView([lat, lon], 17, { animate: true });
+      var isTilted = document.body.classList.contains('tilted');
+      if (isTilted) {
+        document.body.classList.remove('tilted');
+        leafletMap.setView([lat, lon], 16, { animate: true });
+      } else {
+        document.body.classList.add('tilted');
+        leafletMap.setView([lat, lon], 18.5, { animate: true });
+      }
     }
   };
 
