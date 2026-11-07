@@ -93,7 +93,8 @@ body.tilted .mk {
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
 .mk-driver { width: 36px; height: 36px; border-radius: 50%; background: #1a1a26;
   border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  transform: rotate(0deg) !important; }
 </style>
 <script>
 ${LEAFLET_JS}
@@ -120,6 +121,66 @@ const markerDriver = L.marker([${initial.lat}, ${initial.lon}], {
 });
 const routeLine = L.polyline([], { color: '#4f6600', weight: 6, opacity: 0.85 }).addTo(map);
 
+var curLat = ${initial.lat};
+var curLon = ${initial.lon};
+var curHeading = 0;
+var targetLat = ${initial.lat};
+var targetLon = ${initial.lon};
+var targetHeading = 0;
+var isAnimating = false;
+
+function updateMapTransform(heading) {
+  var mapEl = document.getElementById('map');
+  if (!mapEl) return;
+  if (document.body.classList.contains('tilted')) {
+    mapEl.style.transform = 'translateY(-8%) rotateX(32deg) rotateZ(' + (-heading) + 'deg) scale(3.5)';
+    var pins = document.querySelectorAll('.mk');
+    for (var i = 0; i < pins.length; i++) {
+      pins[i].style.transform = 'rotateZ(' + heading + 'deg) rotateX(-32deg)';
+    }
+  } else {
+    mapEl.style.transform = 'none';
+    var pins2 = document.querySelectorAll('.mk');
+    for (var j = 0; j < pins2.length; j++) {
+      pins2[j].style.transform = 'none';
+    }
+  }
+}
+
+function startSmoothLoop() {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  function frame() {
+    var isTilted = document.body.classList.contains('tilted');
+    var step = isTilted ? 0.08 : 0.12;
+
+    var dLat = targetLat - curLat;
+    var dLon = targetLon - curLon;
+    var dHeading = (targetHeading - curHeading + 540) % 360 - 180;
+
+    if (Math.abs(dLat) > 0.0000001 || Math.abs(dLon) > 0.0000001 || Math.abs(dHeading) > 0.05) {
+      curLat += dLat * step;
+      curLon += dLon * step;
+      curHeading = (curHeading + dHeading * step + 360) % 360;
+
+      if (markerDriver) {
+        markerDriver.setLatLng([curLat, curLon]);
+      }
+
+      if (map) {
+        map.panTo([curLat, curLon], { animate: false });
+      }
+
+      if (isTilted) {
+        updateMapTransform(curHeading);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
 map.on('moveend', () => {
   const c = map.getCenter();
   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'center', lat: c.lat, lon: c.lng }));
@@ -129,13 +190,27 @@ window.setState = function (s) {
   if (s.pickup) { markerA.setLatLng([s.pickup[1], s.pickup[0]]).addTo(map); } else { map.removeLayer(markerA); }
   if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
   if (s.driver) {
-    markerDriver.setLatLng([s.driver[1], s.driver[0]]).addTo(map);
-    // Kamera miring 3D pass dekat di atas motor driver saat perjalanan (zoom 18.5)
+    var prevLat = targetLat;
+    var prevLon = targetLon;
+    targetLat = s.driver[1];
+    targetLon = s.driver[0];
+
+    var dLat = targetLat - prevLat;
+    var dLon = targetLon - prevLon;
+    if (Math.abs(dLat) > 0.00001 || Math.abs(dLon) > 0.00001) {
+      var rad = Math.atan2(dLon, dLat);
+      targetHeading = (rad * 180 / Math.PI + 360) % 360;
+    }
+
+    startSmoothLoop();
     document.body.classList.add('tilted');
-    map.setView([s.driver[1], s.driver[0]], 18.5, { animate: true, duration: 0.8 });
+    if (map.getZoom() < 17) {
+      map.setZoom(18);
+    }
+    updateMapTransform(curHeading);
   } else {
-    map.removeLayer(markerDriver);
     document.body.classList.remove('tilted');
+    updateMapTransform(0);
   }
   if (s.route && s.route.length > 1) {
     routeLine.setLatLngs(s.route.map(function(c) { return [c[1], c[0]]; }));
@@ -145,12 +220,18 @@ window.setState = function (s) {
 };
 
 window.focusDriver = function (lng, lat) {
+  targetLat = lat;
+  targetLon = lng;
+  startSmoothLoop();
   document.body.classList.add('tilted');
-  map.setView([lat, lng], 18.5, { animate: true, duration: 0.8 });
+  if (map.getZoom() < 17) {
+    map.setZoom(18);
+  }
 };
 
 window.focusOn = function (lng, lat) {
   document.body.classList.remove('tilted');
+  updateMapTransform(0);
   map.panTo([lat, lng], { animate: true, duration: 0.5 });
 };
 

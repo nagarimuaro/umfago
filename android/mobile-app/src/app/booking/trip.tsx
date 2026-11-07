@@ -87,7 +87,7 @@ export default function TripScreen() {
       } else {
         clearInterval(interval);
       }
-    }, 2000);
+    }, 120);
 
     return () => clearInterval(interval);
   }, [status, pickupRouteCoords, eta]);
@@ -106,7 +106,7 @@ export default function TripScreen() {
       } else {
         clearInterval(interval);
       }
-    }, 2000);
+    }, 120);
 
     return () => clearInterval(interval);
   }, [status, route?.coordinates]);

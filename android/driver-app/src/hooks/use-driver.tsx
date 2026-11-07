@@ -216,9 +216,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         heading,
       });
 
+      let lastWsSend = 0;
       tripSimTimer.current = setInterval(() => {
-        if (tripProgressRef.current < 0.95) {
-          tripProgressRef.current = Math.min(0.95, tripProgressRef.current + 0.05);
+        if (tripProgressRef.current < 0.98) {
+          tripProgressRef.current = Math.min(0.98, tripProgressRef.current + 0.002);
           const prog = tripProgressRef.current;
           const curLat = startLat + (pLat - startLat) * prog;
           const curLon = startLon + (pLon - startLon) * prog;
@@ -229,9 +230,13 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             heading,
           });
 
-          DriverWebSocketService.sendLocation(curLat, curLon, heading, 30);
+          const now = Date.now();
+          if (now - lastWsSend > 1000) {
+            lastWsSend = now;
+            DriverWebSocketService.sendLocation(curLat, curLon, heading, 30);
+          }
         }
-      }, 2500);
+      }, 80);
     } else if (currentOrder?.step === 'in_trip') {
       tripProgressRef.current = 0;
       const pLat = currentOrder.pickup.latitude;
@@ -247,9 +252,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         heading,
       });
 
+      let lastWsSend = 0;
       tripSimTimer.current = setInterval(() => {
-        if (tripProgressRef.current < 0.95) {
-          tripProgressRef.current = Math.min(0.95, tripProgressRef.current + 0.04);
+        if (tripProgressRef.current < 0.98) {
+          tripProgressRef.current = Math.min(0.98, tripProgressRef.current + 0.0016);
           const prog = tripProgressRef.current;
           const curLat = pLat + (dLat - pLat) * prog;
           const curLon = pLon + (dLon - pLon) * prog;
@@ -260,9 +266,13 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             heading,
           });
 
-          DriverWebSocketService.sendLocation(curLat, curLon, heading, 28);
+          const now = Date.now();
+          if (now - lastWsSend > 1000) {
+            lastWsSend = now;
+            DriverWebSocketService.sendLocation(curLat, curLon, heading, 28);
+          }
         }
-      }, 2500);
+      }, 80);
     } else {
       if (tripSimTimer.current) {
         clearInterval(tripSimTimer.current);
