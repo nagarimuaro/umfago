@@ -143,12 +143,42 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const res = await DriverApiService.login('driver.motor@openjek.id', 'password123');
           if (res.success && res.token) {
             token = res.token;
+            if (res.user && typeof res.user.balance === 'number') {
+              setDriver((prev) => ({
+                ...prev,
+                balance: res.user.balance,
+              }));
+            }
             DriverWebSocketService.connect(token);
           } else {
             console.log('[DriverWS] Driver operating in standalone demo mode.');
+            return;
           }
         } else {
           DriverWebSocketService.connect(token);
+        }
+
+        // Sync online status & real shift earnings with backend
+        if (token) {
+          if (isOnline) {
+            await DriverApiService.setDriverStatus('online');
+          }
+          const earnings = await DriverApiService.getDriverEarnings();
+          if (earnings && isMounted) {
+            setDriver((prev) => ({
+              ...prev,
+              balance: typeof earnings.current_balance === 'number' ? earnings.current_balance : prev.balance,
+              stats: {
+                ...prev.stats,
+                todayEarnings: typeof earnings.summary?.driver_earning === 'number'
+                  ? Math.max(prev.stats.todayEarnings, earnings.summary.driver_earning)
+                  : prev.stats.todayEarnings,
+                completedTrips: typeof earnings.summary?.trips === 'number'
+                  ? Math.max(prev.stats.completedTrips, earnings.summary.trips)
+                  : prev.stats.completedTrips,
+              },
+            }));
+          }
         }
       } catch (err) {
         console.log('[DriverWS] Backend auth skipped; standalone cockpit active.');
