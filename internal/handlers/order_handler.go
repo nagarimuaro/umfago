@@ -1038,7 +1038,7 @@ func (h *OrderHandler) GetOrderByUUID(c *gin.Context) {
 	role := models.RoleCode(c.GetString(middleware.UserRoleKey))
 
 	var order models.Order
-	if err := h.db.Where("uuid = ?", uuidParam).First(&order).Error; err != nil {
+	if err := h.db.Preload("Rider").Preload("Merchant").Where("uuid = ?", uuidParam).First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 			return
@@ -1047,14 +1047,23 @@ func (h *OrderHandler) GetOrderByUUID(c *gin.Context) {
 		return
 	}
 
-	// Hanya rider pemilik order, driver yang ditugaskan, atau admin yang boleh melihat
-	if !models.IsAdminRole(role) && order.RiderID != userID && (order.DriverID == nil || *order.DriverID != userID) {
+	// Hanya rider pemilik order, driver yang ditugaskan (atau saat order masih searching), atau admin yang boleh melihat
+	isAssignedOrOfferedDriver := (order.DriverID != nil && *order.DriverID == userID) || (role == models.RoleDriver && order.Status == models.StatusSearching)
+	if !models.IsAdminRole(role) && order.RiderID != userID && !isAssignedOrOfferedDriver {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to view this order"})
 		return
 	}
 
 	resp := gin.H{
 		"order": order,
+	}
+
+	if order.Rider != nil {
+		resp["rider"] = gin.H{
+			"id":    order.Rider.ID,
+			"name":  order.Rider.Name,
+			"phone": order.Rider.Phone,
+		}
 	}
 
 	// Jika order sudah memiliki driver di database, muat data asli driver

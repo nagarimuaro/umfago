@@ -5,7 +5,7 @@
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://umfa-core.fazalabs.sbs';
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 2): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, options);
@@ -577,6 +577,121 @@ export class DriverApiService {
       // ignore
     }
     return { notifications: [], unread_count: 0 };
+  }
+
+  /**
+   * Fetch Complete Driver Profile (User + DriverProfile + Vehicles)
+   * GET /api/profile
+   */
+  public static async getProfile(): Promise<any> {
+    try {
+      const response = await this.authFetch(`${BASE_URL}/api/profile`);
+      if (response.ok) {
+        const json = await response.json();
+        return json.profile || json;
+      }
+    } catch (err) {
+      console.warn('[DriverApi] getProfile fallback');
+    }
+    return null;
+  }
+
+  /**
+   * Fetch Single Order Details by UUID
+   * GET /api/orders/:uuid
+   */
+  public static async getOrderByUUID(orderUuid: string): Promise<any> {
+    if (!orderUuid || orderUuid.startsWith('ord-') || orderUuid.startsWith('mock-')) {
+      return null;
+    }
+    try {
+      const response = await this.authFetch(`${BASE_URL}/api/orders/${orderUuid}`);
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (err) {
+      console.warn('[DriverApi] getOrderByUUID fallback');
+    }
+    return null;
+  }
+
+  /**
+   * Fetch Active Merchants (for real map hotspots & demand zones)
+   * GET /api/merchants
+   */
+  public static async getMerchants(): Promise<any[]> {
+    try {
+      const response = await fetchWithRetry(`${BASE_URL}/api/merchants`);
+      if (response.ok) {
+        const json = await response.json();
+        return json.merchants || [];
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  /**
+   * Create a 100% Real Order in Backend from Customer Account
+   * Used when clicking "Test Order" so the order is stored in PostgreSQL and dispatched via WebSocket
+   */
+  public static async createRealCustomerOrder(payload: {
+    pickup_lat: number;
+    pickup_lon: number;
+    pickup_address: string;
+    dropoff_lat: number;
+    dropoff_lon: number;
+    dropoff_address: string;
+    service_type?: 'ride' | 'car' | 'food' | 'send';
+    vehicle_type?: 'motorcycle' | 'car';
+    payment_method?: 'cash' | 'wallet';
+  }): Promise<{ success: boolean; order?: any; error?: string }> {
+    try {
+      const loginRes = await fetchWithRetry(`${BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'penumpang@openjek.id', password: 'password123' }),
+      });
+      if (!loginRes.ok) {
+        return { success: false, error: 'Gagal otentikasi akun penumpang.' };
+      }
+      const loginData = await loginRes.json();
+      const riderToken = loginData.access_token;
+
+      const orderRes = await fetchWithRetry(`${BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${riderToken}`,
+        },
+        body: JSON.stringify({
+          service_type: payload.service_type || 'ride',
+          vehicle_type: payload.vehicle_type || 'motorcycle',
+          payment_method: payload.payment_method || 'cash',
+          pickup_lat: payload.pickup_lat,
+          pickup_lon: payload.pickup_lon,
+          pickup_address: payload.pickup_address,
+          dropoff_lat: payload.dropoff_lat,
+          dropoff_lon: payload.dropoff_lon,
+          dropoff_address: payload.dropoff_address,
+        }),
+      });
+      const orderData = await orderRes.json().catch(() => ({}));
+      if (!orderRes.ok) {
+        return { success: false, error: orderData.error || 'Gagal membuat order real.' };
+      }
+      return {
+        success: true,
+        order: {
+          ...(orderData.order || orderData),
+          rider_name: loginData.user?.name || 'Ahmad Fauzi',
+          rider_phone: loginData.user?.phone || '081234567890',
+        },
+      };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
   }
 
   /**

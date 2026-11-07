@@ -84,7 +84,7 @@ func (h *HistoryHandler) listOrders(c *gin.Context, scope func(*gorm.DB) *gorm.D
 	page, perPage, offset := paginate(c)
 
 	var orders []models.Order
-	if err := scoped().Order("orders.created_at desc").
+	if err := scoped().Preload("Rider").Preload("Merchant").Order("orders.created_at desc").
 		Limit(perPage).Offset(offset).Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch order history"})
 		return

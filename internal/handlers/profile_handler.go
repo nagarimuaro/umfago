@@ -23,7 +23,7 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	userID := c.GetUint(middleware.UserIDKey)
 
 	var user models.User
-	if err := h.db.Preload("DriverProfile").Preload("MerchantProfile").First(&user, userID).Error; err != nil {
+	if err := h.db.Preload("DriverProfile").Preload("MerchantProfile").Preload("Vehicles").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}

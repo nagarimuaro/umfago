@@ -147,7 +147,9 @@ export default function TripDetailScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{order.customer.name}</Text>
-              <Text style={styles.customerMeta}>⭐ {order.customer.rating} • Pembayaran Dompet UmfaGo</Text>
+              <Text style={styles.customerMeta}>
+                ⭐ {order.customer.rating} • Pembayaran {order.paymentMethod === 'cash' ? 'Tunai' : 'Dompet UmfaGo'}
+              </Text>
             </View>
           </View>
         </View>

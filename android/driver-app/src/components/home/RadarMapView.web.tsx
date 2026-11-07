@@ -18,8 +18,8 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   const [is3DMode, setIs3DMode] = useState(false);
   const [isNightMode, setIsNightMode] = useState(true);
 
-  const lat = currentLocation?.latitude ?? -6.1952;
-  const lon = currentLocation?.longitude ?? 106.8231;
+  const lat = currentLocation?.latitude ?? -0.664159;
+  const lon = currentLocation?.longitude ?? 100.939844;
   const heading = currentLocation?.heading ?? 90;
 
   const mapHtml = useMemo(() => getDriverMapHtml(lat, lon), []);

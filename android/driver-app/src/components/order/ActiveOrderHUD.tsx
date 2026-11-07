@@ -151,7 +151,9 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat }) =>
                 </View>
                 <View>
                   <Text style={styles.customerName}>{currentOrder.customer.name}</Text>
-                  <Text style={styles.customerRating}>⭐ {currentOrder.customer.rating} • Pembayaran Non-Tunai</Text>
+                  <Text style={styles.customerRating}>
+                    ⭐ {currentOrder.customer.rating} • Pembayaran {currentOrder.paymentMethod === 'cash' ? 'Tunai' : 'Non-Tunai'}
+                  </Text>
                 </View>
               </View>
 

@@ -9,6 +9,7 @@ export type VehicleType = 'motorcycle' | 'car';
 export interface DriverVehicle {
   id: string;
   type: VehicleType;
+  brand?: string;
   model: string; // e.g. "Honda Vario 125 CBS ISS"
   plateNumber: string; // e.g. "B 1234 XYZ"
   year: number; // e.g. 2022

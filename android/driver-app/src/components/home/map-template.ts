@@ -378,9 +378,15 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       var turned = Math.abs(dHeading) > 0.05;
 
       if (moved) {
-        // Continuous 60 FPS interpolation (~16 ms per frame)
-        curLat += dLat * 0.22;
-        curLon += dLon * 0.22;
+        // Snap immediately if position jumped more than ~500m (e.g. GPS fix or order location)
+        if (Math.hypot(dLat, dLon) > 0.005) {
+          curLat = targetLat;
+          curLon = targetLon;
+        } else {
+          // Continuous 60 FPS interpolation (~16 ms per frame)
+          curLat += dLat * 0.22;
+          curLon += dLon * 0.22;
+        }
 
         if (driverMarker) {
           driverMarker.setLatLng([curLat, curLon]);
@@ -674,8 +680,13 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       }
     }
 
-    // 3. Update Surge Hotspots (Pure Heatmap Glow)
-    if (state.surges && surgeMarkers.length === 0) {
+    // 3. Update Surge Hotspots (Pure Heatmap Glow from Backend Merchants & Hotspots)
+    if (state.surges && state.surges.length !== surgeMarkers.length) {
+      surgeMarkers.forEach(function(oldM) {
+        if (engine === 'maplibre' && oldM.remove) oldM.remove();
+        else if (engine === 'leaflet' && leafletMap) leafletMap.removeLayer(oldM);
+      });
+      surgeMarkers = [];
       state.surges.forEach(function(s) {
         var surgeHtml = '<div class="surge-ring"></div>';
 

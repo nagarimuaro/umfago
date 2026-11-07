@@ -167,6 +167,12 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 		payload.OrderUUID, len(candidates), candidates)
 
 	// 3. Kirim notifikasi "incoming_order" ke semua kandidat driver via WebSocket
+	var rider models.User
+	_ = w.db.Select("id, name, phone").First(&rider, payload.RiderID).Error
+
+	var dbOrder models.Order
+	_ = w.db.Select("service_type, payment_method, notes").Where("uuid = ?", payload.OrderUUID).First(&dbOrder).Error
+
 	offerPayload, err := json.Marshal(map[string]interface{}{
 		"order_uuid":      payload.OrderUUID,
 		"pickup_lat":      payload.PickupLat,
@@ -178,6 +184,12 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 		"distance_km":     payload.DistanceKm,
 		"fare_amount":     payload.FareAmount,
 		"vehicle_type":    payload.VehicleType,
+		"service_type":    dbOrder.ServiceType,
+		"payment_method":  dbOrder.PaymentMethod,
+		"notes":           dbOrder.Notes,
+		"rider_id":        payload.RiderID,
+		"rider_name":      rider.Name,
+		"rider_phone":     rider.Phone,
 		"expires_at":      expiresAt,
 	})
 	if err != nil {

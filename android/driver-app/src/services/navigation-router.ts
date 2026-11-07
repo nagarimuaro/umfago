@@ -34,9 +34,9 @@ export async function getShortestNavigationRoute(
   // 1. Prioritas Utama: OSRM Public Routing API dengan pencarian alternatif rute terpendek
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&alternatives=true&continue_straight=true`;
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&alternatives=true`;
     const res = await fetch(osrmUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
 

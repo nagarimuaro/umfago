@@ -120,20 +120,26 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
                       <Text style={styles.metaPillText}>± {order.estimatedDurationMinutes} mnt</Text>
                     </View>
                     <View style={styles.metaPill}>
-                      <Ionicons name="card-outline" size={12} color={colors.primary} />
-                      <Text style={[styles.metaPillText, { color: colors.primary }]}>Non-Tunai</Text>
+                      <Ionicons
+                        name={order.paymentMethod === 'cash' ? 'cash-outline' : 'card-outline'}
+                        size={12}
+                        color={colors.primary}
+                      />
+                      <Text style={[styles.metaPillText, { color: colors.primary }]}>
+                        {order.paymentMethod === 'cash' ? 'Tunai' : 'Non-Tunai'}
+                      </Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.serviceBadge}>
                   <FontAwesome5
-                    name={order.serviceType === 'food' ? 'utensils' : 'motorcycle'}
+                    name={order.serviceType === 'food' ? 'utensils' : order.serviceType === 'car' ? 'car' : 'motorcycle'}
                     size={16}
                     color={colors.black}
                   />
                   <Text style={styles.serviceText}>
-                    {order.serviceType === 'food' ? 'UmfaFood' : 'UmfaRide'}
+                    {order.serviceType === 'food' ? 'UmfaFood' : order.serviceType === 'car' ? 'UmfaCar' : 'UmfaRide'}
                   </Text>
                 </View>
               </View>
@@ -146,7 +152,7 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
                     <View style={styles.pickupDot} />
                   </View>
                   <View style={styles.pointTextGroup}>
-                    <Text style={styles.pointCategory}>TITIK JEMPUT (1.2 km dari Anda)</Text>
+                    <Text style={styles.pointCategory}>TITIK JEMPUT PELANGGAN</Text>
                     <Text style={styles.pointAddress}>
                       {order.pickup.address}
                     </Text>
@@ -199,7 +205,9 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
                   <Text style={styles.customerRating}>⭐ {order.customer.rating} • Pelanggan Terverifikasi</Text>
                 </View>
                 <View style={styles.paymentBadge}>
-                  <Text style={styles.paymentBadgeText}>DOMPET</Text>
+                  <Text style={styles.paymentBadgeText}>
+                    {order.paymentMethod === 'cash' ? 'TUNAI' : 'DOMPET'}
+                  </Text>
                 </View>
               </View>
 
