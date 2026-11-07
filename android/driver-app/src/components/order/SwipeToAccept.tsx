@@ -157,12 +157,11 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
       >
         {/* Dynamic Neon Fill as thumb slides */}
         <Animated.View
-          style={[styles.activeFill, { width: fillWidth, backgroundColor: activeFillColor }]}
-          pointerEvents="none"
+          style={[styles.activeFill, { width: fillWidth, backgroundColor: activeFillColor, pointerEvents: 'none' }]}
         />
 
         {/* Shimmering Center Prompt Text */}
-        <Animated.View style={[styles.textContainer, { opacity: textOpacity }]} pointerEvents="none">
+        <Animated.View style={[styles.textContainer, { opacity: textOpacity, pointerEvents: 'none' }]}>
           <Text style={styles.trackText}>{title}</Text>
           <View style={styles.chevronGroup}>
             <Ionicons name="chevron-forward" size={16} color={knobColor} />
@@ -187,12 +186,11 @@ export const SwipeToAccept: React.FC<SwipeToAcceptProps> = ({
             styles.knob,
             {
               backgroundColor: knobColor,
-              shadowColor: knobColor,
               transform: [{ translateX: slideX }],
             },
           ]}
         >
-          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }} pointerEvents="none">
+          <Animated.View style={{ transform: [{ rotate: chevronRotate }], pointerEvents: 'none' }}>
             <Ionicons name={iconName} size={24} color={colors.black} />
           </Animated.View>
         </Animated.View>

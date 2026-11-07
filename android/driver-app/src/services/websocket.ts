@@ -22,7 +22,7 @@ export class DriverWebSocketService {
 
     // Backend endpoint /ws requires a valid JWT token query param: /ws?token=<access_token>
     // Do not attempt to connect without a token to avoid HTTP 401 Unauthorized errors
-    if (!this.currentToken) {
+    if (!this.currentToken || this.currentToken === 'demo-local-session') {
       console.log('[DriverWS] Dispatch hub requires driver authentication. Waiting for valid session.');
       return;
     }

@@ -1,8 +1,7 @@
 import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
 
 export class SoundService {
-  private static soundInstance: Audio.Sound | null = null;
+  private static soundInstance: any = null;
   private static webAudioElement: HTMLAudioElement | null = null;
   private static webAudioCtx: any = null;
   private static isPlaying = false;
@@ -55,7 +54,9 @@ export class SoundService {
         }
       }
 
-      // Native Android / iOS via expo-av
+      // Native Android / iOS via expo-av (lazy-loaded only on native)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Audio } = require('expo-av');
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,

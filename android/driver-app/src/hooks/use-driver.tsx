@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { DriverProfile, DriverStatus, SurgeArea } from '../types/driver';
 import { DriverOrder, DriverOrderStep } from '../types/order';
@@ -89,61 +90,68 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const tripSimTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const routePointsRef = useRef<Array<[number, number]>>([]);
   const routeIndexRef = useRef<number>(0);
+  const isOnlineRef = useRef<boolean>(isOnline);
 
-  // Initialize GPS & Compass Tracking
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
+
+  // Initialize GPS & Compass Tracking (Once on mount)
   useEffect(() => {
     let isMounted = true;
 
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted' && isMounted) {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          setCurrentLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            heading: loc.coords.heading ?? 90,
-          });
-
-          // Watch physical device compass heading in real-time
-          try {
-            headingWatchSub.current = await Location.watchHeadingAsync((headingData) => {
-              if (!isMounted) return;
-              const deg = Math.round(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
-              if (!isNaN(deg)) {
-                setCurrentLocation((prev) => (prev ? { ...prev, heading: deg } : prev));
-              }
+    if (Platform.OS !== 'web') {
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted' && isMounted) {
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            setCurrentLocation({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              heading: loc.coords.heading ?? 90,
             });
-          } catch {
-            // Compass sensor not available on web/emulator
-          }
 
-          locationWatchSub.current = await Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.High,
-              timeInterval: 5000,
-              distanceInterval: 10,
-            },
-            (newLoc) => {
-              if (!isMounted) return;
-              const coords = {
-                latitude: newLoc.coords.latitude,
-                longitude: newLoc.coords.longitude,
-                heading: newLoc.coords.heading ?? 90,
-              };
-              setCurrentLocation(coords);
-
-              // Broadcast to WebSocket if online
-              if (isOnline) {
-                DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, newLoc.coords.speed ?? 0);
-              }
+            // Watch physical device compass heading in real-time
+            try {
+              headingWatchSub.current = await Location.watchHeadingAsync((headingData) => {
+                if (!isMounted) return;
+                const deg = Math.round(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
+                if (!isNaN(deg)) {
+                  setCurrentLocation((prev) => (prev ? { ...prev, heading: deg } : prev));
+                }
+              });
+            } catch {
+              // Compass sensor not available
             }
-          );
+
+            locationWatchSub.current = await Location.watchPositionAsync(
+              {
+                accuracy: Location.Accuracy.High,
+                timeInterval: 5000,
+                distanceInterval: 10,
+              },
+              (newLoc) => {
+                if (!isMounted) return;
+                const coords = {
+                  latitude: newLoc.coords.latitude,
+                  longitude: newLoc.coords.longitude,
+                  heading: newLoc.coords.heading ?? 90,
+                };
+                setCurrentLocation(coords);
+
+                // Broadcast to WebSocket if online
+                if (isOnlineRef.current) {
+                  DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, newLoc.coords.speed ?? 0);
+                }
+              }
+            );
+          }
+        } catch {
+          // Fallback to default Jakarta coordinates silently
         }
-      } catch (e) {
-        console.warn('[DriverGPS] Using default Jakarta coordinates:', e);
-      }
-    })();
+      })();
+    }
 
     // Authenticate with Backend & Connect Realtime Dispatch WebSocket
     (async () => {
@@ -162,7 +170,6 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
             DriverWebSocketService.connect(token);
           } else {
-            console.log('[DriverWS] Driver operating in standalone demo mode.');
             return;
           }
         } else {
@@ -170,8 +177,8 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         // Sync online status & real shift earnings with backend
-        if (token) {
-          if (isOnline) {
+        if (token && token !== 'demo-local-session') {
+          if (isOnlineRef.current) {
             await DriverApiService.setDriverStatus('online');
           }
           const earnings = await DriverApiService.getDriverEarnings();
@@ -191,8 +198,8 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }));
           }
         }
-      } catch (err) {
-        console.log('[DriverWS] Backend auth skipped; standalone cockpit active.');
+      } catch {
+        // Standalone cockpit active
       }
     })();
     const unsub = DriverWebSocketService.addListener((payload) => {
@@ -244,7 +251,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       unsub();
     };
-  }, [isOnline]);
+  }, []);
 
   const toggleOnline = useCallback(async () => {
     const nextState = !isOnline;

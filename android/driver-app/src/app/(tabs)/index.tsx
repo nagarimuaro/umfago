@@ -80,9 +80,9 @@ export default function DriverHomeScreen() {
 
         {/* Floating Controls Stack (Over the Radar Map when Idle) */}
         {!currentOrder && (
-          <View style={styles.floatingStack} pointerEvents="box-none">
+          <View style={[styles.floatingStack, { pointerEvents: 'box-none' }]}>
             {/* Online / Offline Quick Slider with Live GPS Coordinates */}
-            <View pointerEvents="auto">
+            <View style={{ pointerEvents: 'auto' }}>
               <OnlineStatusToggle />
             </View>
           </View>
@@ -90,7 +90,7 @@ export default function DriverHomeScreen() {
 
         {/* Floating Step Status Badge Inside the Map (When Order is Active) */}
         {currentOrder && (
-          <View style={styles.mapStepBadgeWrapper} pointerEvents="none">
+          <View style={[styles.mapStepBadgeWrapper, { pointerEvents: 'none' }]}>
             <View style={styles.stepBadge}>
               <View style={[styles.dotPulse, { backgroundColor: getStepColor() }]} />
               <Text style={styles.stepTitle}>{getStepTitle()}</Text>
