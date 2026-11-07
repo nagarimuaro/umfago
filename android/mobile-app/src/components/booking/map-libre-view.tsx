@@ -78,26 +78,29 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
 }
 /* 3D Tilted Navigation Perspective Mode */
 body.tilted #map-viewport {
-  perspective: 900px;
+  perspective: 800px;
 }
 body.tilted #map {
-  top: -20%;
-  height: 140%;
-  transform: rotateX(25deg);
-  transform-origin: 50% 65%;
+  width: 160%;
+  height: 160%;
+  left: -30%;
+  top: -30%;
+  transform: rotateX(22deg);
+  transform-origin: 50% 60%;
 }
 body.tilted .mk {
-  transform: rotateX(-25deg);
+  transform: rotateX(-22deg);
   transform-origin: bottom center;
 }
 .mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
   box-shadow: 0 4px 12px rgba(0,0,0,0.35); display: flex; align-items: center;
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
+.leaflet-marker-pane .mk-driver { z-index: 999999 !important; }
 .mk-driver { width: 44px; height: 44px; border-radius: 50%; background: #1a1a26;
   border: 2.5px solid #c8ff00; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
-  transition: transform 0.12s linear; transform-origin: 50% 50%; }
+  transition: transform 0.12s linear; transform-origin: 50% 50%; z-index: 999999 !important; }
 </style>
 <script>
 ${LEAFLET_JS}
@@ -107,10 +110,14 @@ ${LEAFLET_JS}
   <div id="map"></div>
 </div>
 <script>
-const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 16);
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${initial.lat}, ${initial.lon}], 16.5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
-  subdomains: ['a', 'b', 'c']
+  subdomains: ['a', 'b', 'c'],
+  keepBuffer: 16,
+  updateInterval: 100,
+  updateWhenIdle: false,
+  updateWhenZooming: false
 }).addTo(map);
 
 const markerA = L.marker([${initial.lat}, ${initial.lon}], {
@@ -121,7 +128,7 @@ const markerB = L.marker([${initial.lat}, ${initial.lon}], {
 });
 const markerDriver = L.marker([${initial.lat}, ${initial.lon}], {
   icon: L.divIcon({ className: 'mk-driver', html: '${driverVehicleType === 'car' ? '🚗' : '🏍️'}', iconSize: [44, 44], iconAnchor: [22, 22] }),
-  zIndexOffset: 1000
+  zIndexOffset: 999999
 });
 const routeLine = L.polyline([], { color: '#4f6600', weight: 6, opacity: 0.85 }).addTo(map);
 
@@ -138,7 +145,7 @@ function updateDriverHeading(heading) {
   if (pin) {
     var isTilted = document.body.classList.contains('tilted');
     if (isTilted) {
-      pin.style.transform = 'rotateX(-25deg) rotateZ(' + heading + 'deg)';
+      pin.style.transform = 'rotateX(-22deg) rotateZ(' + heading + 'deg)';
     } else {
       pin.style.transform = 'rotate(' + heading + 'deg)';
     }
@@ -160,6 +167,7 @@ if (window.DeviceOrientationEvent) {
   }, true);
 }
 
+var lastCameraPan = 0;
 function startSmoothLoop() {
   if (isAnimating) return;
   isAnimating = true;
@@ -174,12 +182,16 @@ function startSmoothLoop() {
       curLat += dLat * step;
       curLon += dLon * step;
 
+      // 60 FPS smooth marker glide
       if (markerDriver) {
         markerDriver.setLatLng([curLat, curLon]);
       }
 
-      if (map) {
-        map.panTo([curLat, curLon], { animate: false });
+      // Smooth camera follow without thrashing tile downloads
+      var now = Date.now();
+      if (map && now - lastCameraPan > 250) {
+        lastCameraPan = now;
+        map.panTo([curLat, curLon], { animate: true, duration: 0.35, easeLinearity: 0.25 });
       }
     }
 

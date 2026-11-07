@@ -44,32 +44,35 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       transition: transform 0.4s ease-out;
     }
 
-    /* 3D Tilted Perspective Mode: Tilted road angle with NO void at top */
+    /* 3D Tilted Perspective Mode: Oversized so the perspective keystone NEVER exposes black edges */
     body.tilted #map-viewport {
-      perspective: 900px;
+      perspective: 800px;
     }
     body.tilted #map {
-      top: -20%;
-      height: 140%;
-      transform: rotateX(25deg);
-      transform-origin: 50% 65%;
+      width: 160%;
+      height: 160%;
+      left: -30%;
+      top: -30%;
+      transform: rotateX(22deg);
+      transform-origin: 50% 60%;
     }
 
     /* Stand markers upright on tilted map */
     body.tilted .order-pin,
     body.tilted .surge-badge {
-      transform: rotateX(-25deg);
+      transform: rotateX(-22deg);
       transform-origin: bottom center;
     }
 
-    /* Dark Mode Filter for OpenStreetMap Raster Tiles */
-    body.night-mode #map { background: #121517; }
+    // Dark Mode Filter for OpenStreetMap Raster Tiles
+    body.night-mode #map { background: #1a1e22; }
     body.night-mode .maplibregl-canvas-container canvas,
     body.night-mode .leaflet-tile-pane {
       filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
     }
-
-    /* Driver Vehicle Marker */
+    .leaflet-marker-pane .driver-marker {
+      z-index: 999999 !important;
+    }
     .driver-marker {
       width: 56px;
       height: 56px;
@@ -77,6 +80,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       align-items: center;
       justify-content: center;
       position: relative;
+      z-index: 999999 !important;
       pointer-events: none;
     }
     .driver-pulse {
@@ -100,7 +104,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       align-items: center;
       justify-content: center;
       position: relative;
-      z-index: 100;
+      z-index: 999999 !important;
       filter: drop-shadow(0 4px 10px rgba(0,0,0,0.85));
       transition: transform 0.12s linear;
       transform-origin: 50% 50%;
@@ -251,7 +255,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     if (pin) {
       var isTilted = document.body.classList.contains('tilted');
       if (isTilted) {
-        pin.style.transform = 'rotateX(-25deg) rotateZ(' + heading + 'deg)';
+        pin.style.transform = 'rotateX(-22deg) rotateZ(' + heading + 'deg)';
       } else {
         pin.style.transform = 'rotate(' + heading + 'deg)';
       }
@@ -274,6 +278,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }, true);
   }
 
+  var lastCameraPan = 0;
   function startSmoothLoop() {
     if (isAnimating) return;
     isAnimating = true;
@@ -288,12 +293,16 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
         curLat += dLat * step;
         curLon += dLon * step;
 
+        // 60 FPS silky smooth marker glide
         if (driverMarker) {
           driverMarker.setLatLng([curLat, curLon]);
         }
 
-        if (leafletMap) {
-          leafletMap.panTo([curLat, curLon], { animate: false });
+        // Smooth camera follow without thrashing tile network requests
+        var now = Date.now();
+        if (leafletMap && now - lastCameraPan > 250) {
+          lastCameraPan = now;
+          leafletMap.panTo([curLat, curLon], { animate: true, duration: 0.35, easeLinearity: 0.25 });
         }
       }
 
@@ -403,11 +412,18 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   // ─────────────────────────────────────────────────────────────
   // 2. Leaflet DOM Engine (WebGL Fallback - 100% Reliable)
   // ─────────────────────────────────────────────────────────────
+  var tileLayer = null;
+
   function initLeaflet() {
-    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 16);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    leafletMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([currentLat, currentLon], 16.5);
+    
+    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: ['a', 'b', 'c']
+      subdomains: ['a', 'b', 'c'],
+      keepBuffer: 16,
+      updateInterval: 100,
+      updateWhenIdle: false,
+      updateWhenZooming: false
     }).addTo(leafletMap);
 
     var driverIcon = L.divIcon({
@@ -416,7 +432,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       iconSize: [56, 56],
       iconAnchor: [28, 28]
     });
-    driverMarker = L.marker([currentLat, currentLon], { icon: driverIcon, zIndexOffset: 1000 }).addTo(leafletMap);
+    driverMarker = L.marker([currentLat, currentLon], { icon: driverIcon, zIndexOffset: 999999 }).addTo(leafletMap);
 
     var pickupIcon = L.divIcon({
       className: 'leaflet-order-pickup',
@@ -567,9 +583,9 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
             className: 'surge-marker',
             html: surgeHtml,
             iconSize: [120, 40],
-            iconAnchor: [60, 20]
+            iconAnchor: [60, 56]
           });
-          var lm = L.marker([s.latitude, s.longitude], { icon: sIcon }).addTo(leafletMap);
+          var lm = L.marker([s.latitude, s.longitude], { icon: sIcon, zIndexOffset: 100 }).addTo(leafletMap);
           lm.on('click', function() {
             sendApp({ type: 'SURGE_SELECT', id: s.id });
           });
@@ -583,7 +599,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     if (engine === 'maplibre' && maplibreMap) {
       maplibreMap.easeTo({ center: [lon, lat], zoom: 16 });
     } else if (engine === 'leaflet' && leafletMap) {
-      leafletMap.setView([lat, lon], 16, { animate: true });
+      leafletMap.setView([lat, lon], 16.5, { animate: true });
     }
   };
 
@@ -599,9 +615,11 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       var isTilted = document.body.classList.contains('tilted');
       if (isTilted) {
         document.body.classList.remove('tilted');
+        setTimeout(function() { leafletMap.invalidateSize(); }, 250);
         leafletMap.setView([lat, lon], 16, { animate: true });
       } else {
         document.body.classList.add('tilted');
+        setTimeout(function() { leafletMap.invalidateSize(); }, 250);
         leafletMap.setView([lat, lon], 17.5, { animate: true });
       }
       updateDriverHeading(curHeading);
