@@ -178,8 +178,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     heading: 90,
   });
 
-  const locationWatchSub = useRef<Location.LocationSubscription | null>(null);
-  const headingWatchSub = useRef<Location.LocationSubscription | null>(null);
+  const nativeGpsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tripSimTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const routePointsRef = useRef<Array<[number, number]>>([]);
   const routeIndexRef = useRef<number>(0);
@@ -403,6 +402,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let isMounted = true;
 
     // 1. Web Geolocation (jika diizinkan oleh browser)
+    let nativeGpsStartTimer: ReturnType<typeof setTimeout> | null = null;
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -427,54 +427,45 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
       );
     } else if (Platform.OS !== 'web') {
-      (async () => {
+      const fetchSafePosition = async () => {
         try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === 'granted' && isMounted) {
-            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            setCurrentLocation({
+          let loc = await Location.getLastKnownPositionAsync();
+          if (!loc) {
+            loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          }
+          if (loc && isMounted) {
+            const coords = {
               latitude: loc.coords.latitude,
               longitude: loc.coords.longitude,
-              heading: loc.coords.heading ?? 90,
-            });
-
-            try {
-              headingWatchSub.current = await Location.watchHeadingAsync((headingData) => {
-                if (!isMounted) return;
-                const deg = Math.round(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
-                if (!isNaN(deg)) {
-                  setCurrentLocation((prev) => (prev ? { ...prev, heading: deg } : prev));
-                }
-              });
-            } catch {
-              // Compass sensor not available
+              heading: loc.coords.heading && loc.coords.heading >= 0 ? Math.round(loc.coords.heading) : 90,
+            };
+            setCurrentLocation(coords);
+            if (isOnlineRef.current) {
+              DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, loc.coords.speed ?? 0);
             }
-
-            locationWatchSub.current = await Location.watchPositionAsync(
-              {
-                accuracy: Location.Accuracy.High,
-                timeInterval: 5000,
-                distanceInterval: 10,
-              },
-              (newLoc) => {
-                if (!isMounted) return;
-                const coords = {
-                  latitude: newLoc.coords.latitude,
-                  longitude: newLoc.coords.longitude,
-                  heading: newLoc.coords.heading ?? 90,
-                };
-                setCurrentLocation(coords);
-
-                if (isOnlineRef.current) {
-                  DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, newLoc.coords.speed ?? 0);
-                }
-              }
-            );
           }
         } catch {
           // Gunakan koordinat default jika GPS gagal
         }
-      })();
+      };
+
+      nativeGpsStartTimer = setTimeout(async () => {
+        if (!isMounted) return;
+        try {
+          const existingPerm = await Location.getForegroundPermissionsAsync();
+          let status = existingPerm.status;
+          if (status !== 'granted') {
+            const reqPerm = await Location.requestForegroundPermissionsAsync();
+            status = reqPerm.status;
+          }
+          if (status === 'granted' && isMounted) {
+            await fetchSafePosition();
+            nativeGpsIntervalRef.current = setInterval(fetchSafePosition, 8000);
+          }
+        } catch {
+          // Abaikan jika permission / lokasi belum siap di perangkat
+        }
+      }, 600);
     }
 
     // 2. Authenticate with Backend & Connect Realtime Dispatch WebSocket
@@ -606,11 +597,12 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return () => {
       isMounted = false;
-      if (locationWatchSub.current) {
-        locationWatchSub.current.remove();
+      if (nativeGpsStartTimer) {
+        clearTimeout(nativeGpsStartTimer);
       }
-      if (headingWatchSub.current) {
-        headingWatchSub.current.remove();
+      if (nativeGpsIntervalRef.current) {
+        clearInterval(nativeGpsIntervalRef.current);
+        nativeGpsIntervalRef.current = null;
       }
       unsub();
     };

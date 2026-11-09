@@ -765,6 +765,41 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
   };
 
+  var ringTimer = null;
+  var ringAudioCtx = null;
+  window.setOrderRing = function(enabled) {
+    if (!enabled) {
+      if (ringTimer) {
+        clearInterval(ringTimer);
+        ringTimer = null;
+      }
+      return;
+    }
+    if (ringTimer) return;
+    function playChime() {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!ringAudioCtx) ringAudioCtx = new AC();
+        if (ringAudioCtx.state === 'suspended') ringAudioCtx.resume();
+        var now = ringAudioCtx.currentTime;
+        var osc = ringAudioCtx.createOscillator();
+        var gain = ringAudioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.setValueAtTime(1174.66, now + 0.18);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(ringAudioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.46);
+      } catch(e) {}
+    }
+    playChime();
+    ringTimer = setInterval(playChime, 900);
+  };
+
   window.addEventListener('message', function(e) {
     try {
       var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;

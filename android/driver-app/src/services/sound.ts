@@ -1,13 +1,21 @@
-import { Platform } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 
 export class SoundService {
-  private static soundInstance: any = null;
   private static webAudioElement: HTMLAudioElement | null = null;
   private static webAudioCtx: any = null;
   private static isPlaying = false;
+  private static nativeRingCallback: ((playing: boolean) => void) | null = null;
 
   /**
-   * Play the high-volume incoming order dispatch alert sound.
+   * Register native WebView audio bridge so Android/iOS can play loud WebAudio synthesizer
+   * without requiring legacy expo-av native C++ module.
+   */
+  public static setNativeRingHandler(handler: ((playing: boolean) => void) | null) {
+    this.nativeRingCallback = handler;
+  }
+
+  /**
+   * Play the high-volume incoming order dispatch alert sound & vibration.
    * Loops until stopOrderAlert() is called.
    */
   public static async playOrderAlert(): Promise<void> {
@@ -16,21 +24,19 @@ export class SoundService {
 
     try {
       if (Platform.OS === 'web') {
-        // High-volume Web Audio playback with GainNode amplification
         try {
           if (!this.webAudioElement && typeof window !== 'undefined') {
             const audio = new window.Audio('/sound/notify.wav');
             audio.loop = true;
             this.webAudioElement = audio;
 
-            // Use Web Audio API GainNode to boost volume above normal 100%
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
             if (AudioContextClass) {
               const ctx = new AudioContextClass();
               this.webAudioCtx = ctx;
               const source = ctx.createMediaElementSource(audio);
               const gainNode = ctx.createGain();
-              gainNode.gain.value = 2.0; // 200% volume boost ("volume besar sekali")
+              gainNode.gain.value = 2.0;
               source.connect(gainNode);
               gainNode.connect(ctx.destination);
             } else {
@@ -54,57 +60,43 @@ export class SoundService {
         }
       }
 
-      // Native Android / iOS via expo-av (lazy-loaded only on native)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Audio } = require('expo-av');
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-      });
-
-      if (this.soundInstance) {
-        await this.soundInstance.unloadAsync().catch(() => {});
-        this.soundInstance = null;
+      // Native Android / iOS: Trigger continuous hardware vibration + WebView AudioContext chime
+      try {
+        Vibration.vibrate([0, 600, 250, 600, 250, 600], true);
+      } catch {
+        // ignore if vibration permission unavailable
       }
 
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sound/notify.wav'),
-        {
-          shouldPlay: true,
-          isLooping: true,
-          volume: 1.0, // Maximum hardware volume
-        }
-      );
-
-      this.soundInstance = sound;
-      await sound.playAsync();
+      if (this.nativeRingCallback) {
+        this.nativeRingCallback(true);
+      }
     } catch (e) {
       console.warn('[SoundService] Failed to play order alert sound:', e);
     }
   }
 
   /**
-   * Stop the order alert sound immediately.
+   * Stop the order alert sound and vibration immediately.
    */
   public static async stopOrderAlert(): Promise<void> {
     this.isPlaying = false;
 
-    // Web stop
-    if (this.webAudioElement) {
-      try {
-        this.webAudioElement.pause();
-        this.webAudioElement.currentTime = 0;
-      } catch {}
+    if (Platform.OS === 'web') {
+      if (this.webAudioElement) {
+        try {
+          this.webAudioElement.pause();
+          this.webAudioElement.currentTime = 0;
+        } catch {}
+      }
+      return;
     }
 
-    // Native stop
-    if (this.soundInstance) {
-      try {
-        await this.soundInstance.stopAsync();
-        await this.soundInstance.unloadAsync();
-      } catch {}
-      this.soundInstance = null;
+    try {
+      Vibration.cancel();
+    } catch {}
+
+    if (this.nativeRingCallback) {
+      this.nativeRingCallback(false);
     }
   }
 }

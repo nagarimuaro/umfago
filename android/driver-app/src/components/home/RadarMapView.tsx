@@ -5,6 +5,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, rounded, spacing } from '../../constants/theme';
 import { useDriver } from '../../hooks/use-driver';
 import { SurgeArea } from '../../types/driver';
+import { SoundService } from '../../services/sound';
 import { getDriverMapHtml } from './map-template';
 
 export interface RadarMapViewProps {
@@ -24,6 +25,13 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
   const heading = currentLocation?.heading ?? 90;
 
   const mapHtml = useMemo(() => getDriverMapHtml(lat, lon), []);
+
+  useEffect(() => {
+    SoundService.setNativeRingHandler((playing) => {
+      webViewRef.current?.injectJavaScript(`window.setOrderRing && window.setOrderRing(${playing}); true;`);
+    });
+    return () => SoundService.setNativeRingHandler(null);
+  }, []);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
@@ -195,7 +203,11 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: '#121517',
   },
   webView: {

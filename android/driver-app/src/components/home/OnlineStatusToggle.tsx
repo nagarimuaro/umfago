@@ -7,7 +7,7 @@ import { useDriver } from '../../hooks/use-driver';
 
 export const OnlineStatusToggle: React.FC = () => {
   const { isOnline, toggleOnline, currentOrder, currentLocation } = useDriver();
-  const [address, setAddress] = useState<string>('Menteng, Jakarta Pusat');
+  const [address, setAddress] = useState<string>('Muaro Sijunjung, Sumatera Barat');
 
   useEffect(() => {
     let isMounted = true;
@@ -15,50 +15,22 @@ export const OnlineStatusToggle: React.FC = () => {
 
     (async () => {
       try {
-        if (Platform.OS === 'web') {
-          // On Web: use OpenStreetMap Nominatim to avoid Google Geocoding API warning
-          try {
-            const resp = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.latitude}&lon=${currentLocation.longitude}`,
-              { headers: { 'User-Agent': 'UmfagoDriver/1.0' } }
-            );
-            if (resp.ok) {
-              const data = await resp.json();
-              const addr = data.address;
-              const street = addr?.road || data.name || addr?.suburb;
-              const city = addr?.city_district || addr?.city || 'Jakarta Pusat';
-              if (isMounted) {
-                setAddress(street ? `${street}, ${city}` : 'Menteng, Jakarta Pusat');
-              }
-              return;
-            }
-          } catch {
-            if (isMounted) setAddress('Menteng, Jakarta Pusat');
-            return;
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.latitude}&lon=${currentLocation.longitude}`,
+          { headers: { 'User-Agent': 'UmfagoDriver/1.0' } }
+        );
+        if (resp.ok) {
+          const data = await resp.json();
+          const addr = data.address;
+          const street = addr?.road || data.name || addr?.suburb || addr?.village;
+          const city = addr?.city_district || addr?.city || addr?.county || addr?.state || 'Sumatera Barat';
+          if (isMounted) {
+            setAddress(street ? `${street}, ${city}` : city);
           }
-        }
-
-        // Native Android / iOS uses device Geocoder
-        const results = await Location.reverseGeocodeAsync({
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-        });
-
-        if (results && results.length > 0 && isMounted) {
-          const item = results[0];
-          const street = item.street || item.name;
-          const area = item.district || item.subregion || item.city;
-          const parts = [street, area].filter(Boolean);
-          if (parts.length > 0) {
-            setAddress(parts.join(', '));
-          } else if (item.city) {
-            setAddress(item.city);
-          }
+          return;
         }
       } catch {
-        if (isMounted) {
-          setAddress('Menteng, Jakarta Pusat');
-        }
+        // Fallback ke alamat default bila offline
       }
     })();
 
