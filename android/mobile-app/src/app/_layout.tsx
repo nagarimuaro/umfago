@@ -10,7 +10,7 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
@@ -24,19 +24,20 @@ SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
+  const segments = useSegments();
 
   const isLoggedIn = !!user;
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!isLoggedIn) {
-        // Alur pembuka: Splash screen geser (onboarding slider) -> register / login
-        router.replace('/auth/onboarding');
-      } else {
-        router.replace('/(tabs)');
-      }
+    if (isLoading) return;
+    const inAuthGroup = segments[0] === 'auth';
+    if (!isLoggedIn && !inAuthGroup) {
+      // Langsung arahkan ke halaman Login jika belum masuk akun backend
+      router.replace('/auth/login');
+    } else if (isLoggedIn && inAuthGroup) {
+      router.replace('/(tabs)');
     }
-  }, [isLoggedIn, isLoading]);
+  }, [isLoggedIn, isLoading, segments]);
 
   return (
     <>

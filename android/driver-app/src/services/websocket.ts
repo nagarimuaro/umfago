@@ -4,6 +4,8 @@
  * Aligned with Golang backend in internal/websocket/hub.go
  */
 
+import { DriverApiService, isJwtExpired } from './api';
+
 const WS_URL = process.env.EXPO_PUBLIC_WS_URL || 'wss://umfa-core.fazalabs.sbs/ws';
 
 export type MessageHandler = (data: any) => void;
@@ -18,15 +20,37 @@ export class DriverWebSocketService {
   private static lastLat = -6.1952;
   private static lastLon = 106.8231;
   private static lastHeading = 90;
+  private static tokenSubInitialized = false;
 
-  public static connect(token?: string) {
+  private static ensureTokenSubscription() {
+    if (this.tokenSubInitialized) return;
+    this.tokenSubInitialized = true;
+    DriverApiService.onTokenChange((newToken) => {
+      this.currentToken = newToken;
+    });
+  }
+
+  public static async connect(token?: string) {
+    this.ensureTokenSubscription();
     if (token) {
       this.currentToken = token;
     }
 
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    // Ensure token is non-expired before opening WebSocket handshake
+    if (!this.currentToken || isJwtExpired(this.currentToken, 60)) {
+      const refreshed = await DriverApiService.getValidToken();
+      if (refreshed) {
+        this.currentToken = refreshed;
+      }
+    }
+
     // Backend endpoint /ws requires a valid JWT token query param: /ws?token=<access_token>
-    // Do not attempt to connect without a token to avoid HTTP 401 Unauthorized errors
-    if (!this.currentToken || this.currentToken === 'demo-local-session') {
+    // Do not attempt to connect without a valid non-expired token to avoid HTTP 401 Unauthorized errors
+    if (!this.currentToken || this.currentToken === 'demo-local-session' || isJwtExpired(this.currentToken, 10)) {
       console.log('[DriverWS] Dispatch hub requires driver authentication. Waiting for valid session.');
       return;
     }

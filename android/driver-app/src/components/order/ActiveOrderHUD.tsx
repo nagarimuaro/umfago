@@ -96,21 +96,21 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat }) =>
         // Support mouse drag on web as well as touch
         {...(Platform.OS === 'web'
           ? {
-              onMouseDown: (e: any) => {
-                dragStartY.current = e.clientY;
-              },
-              onMouseUp: (e: any) => {
-                if (dragStartY.current !== null) {
-                  const dy = e.clientY - dragStartY.current;
-                  dragStartY.current = null;
-                  if (dy < -15) {
-                    setIsExpanded(true);
-                  } else if (dy > 15) {
-                    setIsExpanded(false);
-                  }
+            onMouseDown: (e: any) => {
+              dragStartY.current = e.clientY;
+            },
+            onMouseUp: (e: any) => {
+              if (dragStartY.current !== null) {
+                const dy = e.clientY - dragStartY.current;
+                dragStartY.current = null;
+                if (dy < -15) {
+                  setIsExpanded(true);
+                } else if (dy > 15) {
+                  setIsExpanded(false);
                 }
-              },
-            }
+              }
+            },
+          }
           : {})}
       >
         <TouchableOpacity
@@ -187,11 +187,11 @@ export const ActiveOrderHUD: React.FC<ActiveOrderHUDProps> = ({ onOpenChat }) =>
                 </Text>
                 {isInTrip
                   ? currentOrder.destination.landmark && (
-                      <Text style={styles.targetNote}>Catatan: {currentOrder.destination.landmark}</Text>
-                    )
+                    <Text style={styles.targetNote}>Catatan: {currentOrder.destination.landmark}</Text>
+                  )
                   : currentOrder.pickup.landmark && (
-                      <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
-                    )}
+                    <Text style={styles.targetNote}>Catatan: {currentOrder.pickup.landmark}</Text>
+                  )}
               </View>
             </View>
           </>

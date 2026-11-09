@@ -6,8 +6,8 @@ import { colors, rounded, spacing } from '../../constants/theme';
 import { useDriver } from '../../hooks/use-driver';
 
 export const OnlineStatusToggle: React.FC = () => {
-  const { isOnline, toggleOnline, currentOrder, currentLocation } = useDriver();
-  const [address, setAddress] = useState<string>('Muaro Sijunjung, Sumatera Barat');
+  const { isOnline, toggleOnline, currentOrder, currentLocation, locateDriverNow } = useDriver();
+  const [address, setAddress] = useState<string>('Mendeteksi Lokasi GPS...');
 
   useEffect(() => {
     let isMounted = true;
@@ -65,8 +65,12 @@ export const OnlineStatusToggle: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Left Status Indicator & Location Address */}
-      <View style={styles.statusGroup}>
+      {/* Left Status Indicator & Location Address (Tap to refresh & center GPS) */}
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => locateDriverNow(true)}
+        style={styles.statusGroup}
+      >
         <View style={styles.dotContainer}>
           {isOnline && <View style={styles.pingRing} />}
           <View
@@ -86,7 +90,7 @@ export const OnlineStatusToggle: React.FC = () => {
         <View style={styles.textContainer}>
           {getStatusContent()}
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Right Quick Toggle Switch Button */}
       <TouchableOpacity

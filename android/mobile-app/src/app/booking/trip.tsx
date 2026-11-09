@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 3,
-    maxHeight: '75%',
+    maxHeight: '50%',
     backgroundColor: Palette.surfaceContainerLowest,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,

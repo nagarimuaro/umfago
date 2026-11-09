@@ -14,14 +14,14 @@ export interface RadarMapViewProps {
 }
 
 export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSimulateOrder }) => {
-  const { currentLocation, isOnline, surgeAreas, currentOrder, activeRoute } = useDriver();
+  const { currentLocation, isOnline, surgeAreas, currentOrder, activeRoute, locateDriverNow } = useDriver();
   const webViewRef = useRef<WebView<object>>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isNightMode, setIsNightMode] = useState(true);
 
-  const lat = currentLocation?.latitude ?? -0.664159;
-  const lon = currentLocation?.longitude ?? 100.939844;
+  const lat = currentLocation?.latitude ?? -0.9471;
+  const lon = currentLocation?.longitude ?? 100.4172;
   const heading = currentLocation?.heading ?? 90;
 
   const mapHtml = useMemo(() => getDriverMapHtml(lat, lon), []);
@@ -102,8 +102,12 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     webViewRef.current?.injectJavaScript(`window.updateState(${JSON.stringify(state)}); true;`);
   }, [ready, lat, lon, heading, isOnline, currentOrder, surgeAreas, activeRoute]);
 
-  const handleRecenter = () => {
+  const handleRecenter = async () => {
     webViewRef.current?.injectJavaScript(`window.recenter(${lon}, ${lat}); true;`);
+    const fresh = await locateDriverNow(true);
+    if (fresh) {
+      webViewRef.current?.injectJavaScript(`window.recenter(${fresh.longitude}, ${fresh.latitude}); true;`);
+    }
   };
 
   const handleTogglePerspective = () => {
@@ -130,12 +134,20 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
       <WebView<object>
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: mapHtml }}
+        source={{ html: mapHtml, baseUrl: 'https://umfa-core.fazalabs.sbs' }}
         style={styles.webView}
         scrollEnabled={false}
         bounces={false}
         javaScriptEnabled
         domStorageEnabled
+        mixedContentMode="always"
+        mediaPlaybackRequiresUserAction={false}
+        onLayout={() => {
+          webViewRef.current?.injectJavaScript('window.onMapResize && window.onMapResize(); true;');
+        }}
+        onLoadEnd={() => {
+          webViewRef.current?.injectJavaScript('window.onMapResize && window.onMapResize(); true;');
+        }}
         onMessage={handleMessage}
       />
 

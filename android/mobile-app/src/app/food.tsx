@@ -40,6 +40,7 @@ export default function FoodScreen() {
   const [serverMerchants, setServerMerchants] = useState<FoodMerchant[]>([]);
 
   useEffect(() => {
+    if (!token) return;
     const fetchMerchants = async () => {
       try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };

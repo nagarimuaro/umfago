@@ -30,8 +30,16 @@ const STORAGE_REFRESH_KEY = 'umfago_driver_refresh_token';
 const STORAGE_EMAIL_KEY = 'umfago_driver_email';
 const STORAGE_PASS_KEY = 'umfago_driver_pass';
 
+const g = globalThis as any;
+if (!g.__UMFAGO_DRIVER_STORAGE) {
+  g.__UMFAGO_DRIVER_STORAGE = {};
+}
+
 function getStorageItem(key: string): string | null {
   try {
+    if (g.__UMFAGO_DRIVER_STORAGE[key]) {
+      return g.__UMFAGO_DRIVER_STORAGE[key];
+    }
     if (typeof window !== 'undefined' && window.localStorage) {
       return window.localStorage.getItem(key);
     }
@@ -43,6 +51,11 @@ function getStorageItem(key: string): string | null {
 
 function setStorageItem(key: string, value: string | null) {
   try {
+    if (value === null) {
+      delete g.__UMFAGO_DRIVER_STORAGE[key];
+    } else {
+      g.__UMFAGO_DRIVER_STORAGE[key] = value;
+    }
     if (typeof window !== 'undefined' && window.localStorage) {
       if (value === null) {
         window.localStorage.removeItem(key);
@@ -55,15 +68,75 @@ function setStorageItem(key: string, value: string | null) {
   }
 }
 
+function decodeBase64Url(input: string): string {
+  try {
+    const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
+    const normalized = base64 + pad;
+    if (typeof atob === 'function') {
+      return atob(normalized);
+    }
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let output = '';
+    for (let bc = 0, bs = 0, buffer: any, idx = 0; (buffer = normalized.charAt(idx++)); ) {
+      buffer = chars.indexOf(buffer);
+      if (~buffer) {
+        bs = bc % 4 ? bs * 64 + buffer : buffer;
+        if (bc++ % 4) {
+          output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6)));
+        }
+      }
+    }
+    return output;
+  } catch {
+    return '';
+  }
+}
+
+export function parseJwtPayload(token: string | null): { user_id?: number; email?: string; role?: string; exp?: number } | null {
+  if (!token || token === 'demo-local-session') return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const jsonStr = decodeBase64Url(parts[1]);
+    if (!jsonStr) return null;
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
+export function isJwtExpired(token: string | null, bufferSeconds = 60): boolean {
+  const payload = parseJwtPayload(token);
+  if (!payload || typeof payload.exp !== 'number') return true;
+  return payload.exp * 1000 < Date.now() + bufferSeconds * 1000;
+}
+
 export class DriverApiService {
   private static token: string | null = getStorageItem(STORAGE_TOKEN_KEY);
   private static refreshToken: string | null = getStorageItem(STORAGE_REFRESH_KEY);
-  private static lastEmail: string = getStorageItem(STORAGE_EMAIL_KEY) || 'driver.motor@openjek.id';
-  private static lastPass: string = getStorageItem(STORAGE_PASS_KEY) || 'password123';
+  private static lastEmail: string | null = getStorageItem(STORAGE_EMAIL_KEY);
+  private static lastPass: string | null = getStorageItem(STORAGE_PASS_KEY);
+  private static refreshPromise: Promise<string | null> | null = null;
+  private static tokenListeners: Set<(token: string | null) => void> = new Set();
+
+  public static onTokenChange(listener: (token: string | null) => void): () => void {
+    this.tokenListeners.add(listener);
+    return () => {
+      this.tokenListeners.delete(listener);
+    };
+  }
 
   public static setAuthToken(token: string | null) {
     this.token = token;
     setStorageItem(STORAGE_TOKEN_KEY, token);
+    this.tokenListeners.forEach((cb) => {
+      try {
+        cb(token);
+      } catch {
+        // ignore listener error
+      }
+    });
   }
 
   public static getAuthToken(): string | null {
@@ -73,8 +146,40 @@ export class DriverApiService {
     return this.token;
   }
 
-  private static getHeaders(): HeadersInit {
-    const token = this.getAuthToken();
+  public static hasSavedSession(): boolean {
+    return Boolean(
+      this.getAuthToken() ||
+        this.refreshToken ||
+        getStorageItem(STORAGE_REFRESH_KEY) ||
+        this.lastEmail ||
+        getStorageItem(STORAGE_EMAIL_KEY)
+    );
+  }
+
+  public static async getValidToken(): Promise<string | null> {
+    return this.ensureValidToken(false);
+  }
+
+  public static clearSession() {
+    this.token = null;
+    this.refreshToken = null;
+    this.lastEmail = null;
+    this.lastPass = null;
+    setStorageItem(STORAGE_TOKEN_KEY, null);
+    setStorageItem(STORAGE_REFRESH_KEY, null);
+    setStorageItem(STORAGE_EMAIL_KEY, null);
+    setStorageItem(STORAGE_PASS_KEY, null);
+    this.tokenListeners.forEach((cb) => {
+      try {
+        cb(null);
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  private static getHeaders(tokenOverride?: string | null): HeadersInit {
+    const token = tokenOverride ?? this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -86,74 +191,127 @@ export class DriverApiService {
   }
 
   /**
-   * Ensure a valid non-expired JWT token exists, refreshing or re-authenticating if needed
+   * Ensure a valid non-expired JWT token exists, refreshing or re-authenticating if needed.
+   * Uses a shared mutex (refreshPromise) so parallel requests never trigger refresh_token rotation conflicts.
    */
   private static async ensureValidToken(forceRefresh = false): Promise<string | null> {
     const current = this.getAuthToken();
-    if (!forceRefresh && current && current !== 'demo-local-session') {
+    if (!forceRefresh && current && !isJwtExpired(current, 60)) {
       return current;
     }
 
-    // Try refresh token first if available
-    const refresh = this.refreshToken || getStorageItem(STORAGE_REFRESH_KEY);
-    if (refresh) {
-      try {
-        const refRes = await fetch(`${BASE_URL}/api/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refresh }),
-        });
-        if (refRes.ok) {
-          const refData = await refRes.json();
-          if (refData.access_token) {
-            this.setAuthToken(refData.access_token);
-            if (refData.refresh_token) {
-              this.refreshToken = refData.refresh_token;
-              setStorageItem(STORAGE_REFRESH_KEY, refData.refresh_token);
-            }
-            return refData.access_token;
-          }
-        }
-      } catch {
-        // Fallback to re-login below
-      }
+    if (this.refreshPromise) {
+      return this.refreshPromise;
     }
 
-    // Re-authenticate with stored credentials (or default driver motor account)
-    const email = this.lastEmail || getStorageItem(STORAGE_EMAIL_KEY) || 'driver.motor@openjek.id';
-    const pass = this.lastPass || getStorageItem(STORAGE_PASS_KEY) || 'password123';
-    try {
-      const loginRes = await fetchWithRetry(`${BASE_URL}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass }),
-      });
-      if (loginRes.ok) {
-        const loginData = await loginRes.json();
-        if (loginData.access_token) {
-          this.setAuthToken(loginData.access_token);
-          if (loginData.refresh_token) {
-            this.refreshToken = loginData.refresh_token;
-            setStorageItem(STORAGE_REFRESH_KEY, loginData.refresh_token);
-          }
-          return loginData.access_token;
+    this.refreshPromise = (async (): Promise<string | null> => {
+      try {
+        const latest = this.getAuthToken();
+        if (!forceRefresh && latest && !isJwtExpired(latest, 60)) {
+          return latest;
         }
+
+        // 1. Try refresh token first if available
+        const refresh = this.refreshToken || getStorageItem(STORAGE_REFRESH_KEY);
+        if (refresh) {
+          try {
+            const refRes = await fetch(`${BASE_URL}/api/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refresh }),
+            });
+            if (refRes.ok) {
+              const refData = await refRes.json();
+              if (refData.access_token) {
+                if (refData.refresh_token) {
+                  this.refreshToken = refData.refresh_token;
+                  setStorageItem(STORAGE_REFRESH_KEY, refData.refresh_token);
+                }
+                this.setAuthToken(refData.access_token);
+                return refData.access_token;
+              }
+            } else {
+              // Refresh token invalid or rotated — remove stale refresh token so we don't reuse it
+              this.refreshToken = null;
+              setStorageItem(STORAGE_REFRESH_KEY, null);
+            }
+          } catch {
+            // Network error, fallback to re-login below
+          }
+        }
+
+        // 2. Fallback: Re-authenticate if credentials or previous JWT email claim exist
+        const jwtClaims = parseJwtPayload(latest);
+        const email =
+          this.lastEmail ||
+          getStorageItem(STORAGE_EMAIL_KEY) ||
+          (jwtClaims?.email ? jwtClaims.email : null);
+        const pass =
+          this.lastPass ||
+          getStorageItem(STORAGE_PASS_KEY) ||
+          (email ? 'password123' : null);
+
+        if (!email || !pass) {
+          if (latest && isJwtExpired(latest, 0)) {
+            this.setAuthToken(null);
+          }
+          return null;
+        }
+
+        try {
+          const loginRes = await fetchWithRetry(`${BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: pass }),
+          });
+          if (loginRes.ok) {
+            const loginData = await loginRes.json();
+            if (loginData.access_token) {
+              this.lastEmail = email;
+              this.lastPass = pass;
+              setStorageItem(STORAGE_EMAIL_KEY, email);
+              setStorageItem(STORAGE_PASS_KEY, pass);
+              if (loginData.refresh_token) {
+                this.refreshToken = loginData.refresh_token;
+                setStorageItem(STORAGE_REFRESH_KEY, loginData.refresh_token);
+              }
+              this.setAuthToken(loginData.access_token);
+              return loginData.access_token;
+            }
+          }
+        } catch {
+          // ignore network error
+        }
+
+        if (latest && isJwtExpired(latest, 0)) {
+          this.setAuthToken(null);
+          return null;
+        }
+        return this.token;
+      } finally {
+        this.refreshPromise = null;
       }
-    } catch {
-      // ignore
-    }
-    return this.token;
+    })();
+
+    return this.refreshPromise;
   }
 
   /**
-   * Authenticated fetch wrapper that automatically attaches JWT and transparently retries on 401
+   * Authenticated fetch wrapper that pre-validates JWT expiry and transparently retries on 401
    */
   private static async authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-    await this.ensureValidToken(false);
+    const validToken = await this.ensureValidToken(false);
+    if (!validToken || validToken === 'demo-local-session') {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const res = await fetchWithRetry(url, {
       ...options,
       headers: {
-        ...this.getHeaders(),
+        ...this.getHeaders(validToken),
         ...(options.headers || {}),
       },
     });
@@ -164,7 +322,7 @@ export class DriverApiService {
         return fetchWithRetry(url, {
           ...options,
           headers: {
-            ...this.getHeaders(),
+            ...this.getHeaders(refreshed),
             ...(options.headers || {}),
           },
         });
@@ -180,21 +338,29 @@ export class DriverApiService {
    * POST /api/login
    */
   public static async login(email: string, pass: string): Promise<{ success: boolean; token?: string; user?: any; error?: string }> {
-    this.lastEmail = email;
-    this.lastPass = pass;
-    setStorageItem(STORAGE_EMAIL_KEY, email);
-    setStorageItem(STORAGE_PASS_KEY, pass);
-
     try {
       const res = await fetchWithRetry(`${BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass }),
+        body: JSON.stringify({ email: email.trim(), password: pass }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: data.error || 'Login gagal.' };
+        return { success: false, error: data.error || data.message || 'Login gagal. Periksa kembali email dan kata sandi Anda.' };
       }
+
+      const role = data.user?.active_role || '';
+      if (role && !role.startsWith('driver')) {
+        return {
+          success: false,
+          error: 'Akun ini bukan akun Mitra Driver. Silakan masuk menggunakan akun Mitra Driver Motor atau Mobil.',
+        };
+      }
+
+      this.lastEmail = email.trim();
+      this.lastPass = pass;
+      setStorageItem(STORAGE_EMAIL_KEY, email.trim());
+      setStorageItem(STORAGE_PASS_KEY, pass);
       this.setAuthToken(data.access_token);
       if (data.refresh_token) {
         this.refreshToken = data.refresh_token;
@@ -202,26 +368,7 @@ export class DriverApiService {
       }
       return { success: true, token: data.access_token, user: data.user };
     } catch (e: any) {
-      // Fallback for seeded demo accounts if backend is temporarily restarting
-      if (
-        pass === 'password123' &&
-        (email === 'driver.motor@openjek.id' || email === 'driver.mobil@openjek.id' || email === 'calon.driver@openjek.id')
-      ) {
-        const isCar = email === 'driver.mobil@openjek.id';
-        return {
-          success: true,
-          token: 'demo-local-session',
-          user: {
-            id: isCar ? 3 : 2,
-            name: isCar ? 'Eko Prasetyo' : 'Budi Santoso',
-            email,
-            phone: isCar ? '081234567892' : '081234567891',
-            active_role: isCar ? 'driver_car' : 'driver_motorcycle',
-            balance: isCar ? 240000 : 95800,
-          },
-        };
-      }
-      return { success: false, error: e.message };
+      return { success: false, error: e.message || 'Gagal menghubungi server backend UmfaGo.' };
     }
   }
 
@@ -621,7 +768,7 @@ export class DriverApiService {
    */
   public static async getMerchants(): Promise<any[]> {
     try {
-      const response = await fetchWithRetry(`${BASE_URL}/api/merchants`);
+      const response = await this.authFetch(`${BASE_URL}/api/merchants`);
       if (response.ok) {
         const json = await response.json();
         return json.merchants || [];

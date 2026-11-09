@@ -1,4 +1,5 @@
 import { DRIVER_ICON_DATA_URI } from '../../constants/driver-asset';
+import { NOTIFY_SOUND_DATA_URI } from '../../constants/notify-sound-asset';
 import { LEAFLET_CSS, LEAFLET_JS } from '../../constants/leaflet-bundle';
 
 /**
@@ -34,21 +35,19 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       position: relative;
       overflow: hidden;
       background: #e5e7eb;
-      perspective: 1000px;
     }
     body.night-mode #map-viewport {
-      background: #4e5446;
+      background: #24292e;
     }
 
     #map {
       position: absolute;
-      width: 460%;
-      height: 460%;
-      left: -180%;
-      top: -165%;
+      width: 136%;
+      height: 136%;
+      left: -18%;
+      top: -18%;
       background: #e5e7eb;
       transform-origin: 50% 50%;
-      will-change: transform;
     }
 
     /* Stand markers upright on tilted map */
@@ -56,8 +55,8 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
       transform-origin: bottom center;
     }
 
-    /* Night Mode Filter for ArcGIS World Street Map */
-    body.night-mode #map { background: #4e5446; }
+    /* Night Mode Filter for Street Map */
+    body.night-mode #map { background: #24292e; }
     body.night-mode .leaflet-tile-pane {
       filter: brightness(0.68) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.35);
     }
@@ -198,6 +197,7 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   }
 
   var DRIVER_IMG = ${JSON.stringify(DRIVER_ICON_DATA_URI)};
+  var NOTIFY_AUDIO_SRC = ${JSON.stringify(NOTIFY_SOUND_DATA_URI)};
   var currentLat = ${initialLat};
   var currentLon = ${initialLon};
   var engine = 'leaflet';
@@ -517,19 +517,36 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     leafletMap = L.map('map', {
       zoomControl: false,
       attributionControl: false,
-      zoomSnap: 0.1,
+      zoomSnap: 0.25,
       zoomDelta: 0.5,
       maxZoom: 20
-    }).setView([currentLat, currentLon], 17.5);
+    }).setView([currentLat, currentLon], 17);
     
-    tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxNativeZoom: 18,
+    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      subdomains: 'abc',
+      maxNativeZoom: 19,
       maxZoom: 20,
-      keepBuffer: 16,
-      updateInterval: 50,
+      keepBuffer: 2,
       updateWhenIdle: false,
       updateWhenZooming: false
     }).addTo(leafletMap);
+
+    // Fallback otomatis ke Google Street Tiles / ArcGIS jika CDN utama terhambat di jaringan seluler
+    tileLayer.on('tileerror', function(err) {
+      if (err && err.tile && err.coords) {
+        if (!err.tile._fallbackStep) {
+          err.tile._fallbackStep = 1;
+          err.tile.src =
+            'https://mt1.google.com/vt/lyrs=m&hl=id&x=' +
+            err.coords.x + '&y=' + err.coords.y + '&z=' + err.coords.z;
+        } else if (err.tile._fallbackStep === 1) {
+          err.tile._fallbackStep = 2;
+          err.tile.src =
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/' +
+            err.coords.z + '/' + err.coords.y + '/' + err.coords.x;
+        }
+      }
+    });
 
     var driverIcon = L.divIcon({
       className: 'driver-marker',
@@ -558,9 +575,32 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     leafletGlowLine = L.polyline([], { color: '#C8FF00', weight: 18, opacity: 0.35 }).addTo(leafletMap);
     leafletRouteLine = L.polyline([], { color: '#C8FF00', weight: 9, opacity: 0.95 }).addTo(leafletMap);
 
+    window.onMapResize = function() {
+      if (leafletMap) {
+        leafletMap.invalidateSize({ pan: false });
+      }
+      if (maplibreMap && maplibreMap.resize) {
+        maplibreMap.resize();
+      }
+    };
+
+    window.addEventListener('resize', window.onMapResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      var vp = document.getElementById('map-viewport');
+      if (vp) {
+        new ResizeObserver(function() {
+          window.onMapResize();
+        }).observe(vp);
+      }
+    }
+
     setTimeout(function() {
+      window.onMapResize();
       sendApp({ type: 'ready', engine: 'leaflet' });
     }, 100);
+    setTimeout(window.onMapResize, 350);
+    setTimeout(window.onMapResize, 800);
+    setTimeout(window.onMapResize, 1600);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -720,10 +760,19 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
   window.recenter = function(lon, lat) {
     targetLat = lat;
     targetLon = lon;
+    curLat = lat;
+    curLon = lon;
     if (engine === 'maplibre' && maplibreMap) {
-      maplibreMap.easeTo({ center: [lon, lat], zoom: 16 });
+      if (driverMarker && driverMarker.setLngLat) {
+        driverMarker.setLngLat([lon, lat]);
+      }
+      maplibreMap.easeTo({ center: [lon, lat], zoom: 17 });
     } else if (engine === 'leaflet' && leafletMap) {
-      leafletMap.panTo([lat, lon], { animate: false });
+      if (driverMarker && driverMarker.setLatLng) {
+        driverMarker.setLatLng([lat, lon]);
+      }
+      var zoomLvl = leafletMap.getZoom() < 16 ? 17 : leafletMap.getZoom();
+      leafletMap.setView([lat, lon], zoomLvl, { animate: false });
       updateNavigationOrientation(curHeading);
     }
   };
@@ -765,39 +814,38 @@ export function getDriverMapHtml(initialLat: number, initialLon: number): string
     }
   };
 
-  var ringTimer = null;
+  var ringAudioEl = null;
   var ringAudioCtx = null;
   window.setOrderRing = function(enabled) {
-    if (!enabled) {
-      if (ringTimer) {
-        clearInterval(ringTimer);
-        ringTimer = null;
+    try {
+      if (!enabled) {
+        if (ringAudioEl) {
+          ringAudioEl.pause();
+          ringAudioEl.currentTime = 0;
+        }
+        return;
       }
-      return;
-    }
-    if (ringTimer) return;
-    function playChime() {
-      try {
+      if (!ringAudioEl) {
+        ringAudioEl = new Audio(NOTIFY_AUDIO_SRC);
+        ringAudioEl.loop = true;
         var AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        if (!ringAudioCtx) ringAudioCtx = new AC();
-        if (ringAudioCtx.state === 'suspended') ringAudioCtx.resume();
-        var now = ringAudioCtx.currentTime;
-        var osc = ringAudioCtx.createOscillator();
-        var gain = ringAudioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(880, now);
-        osc.frequency.setValueAtTime(1174.66, now + 0.18);
-        gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc.connect(gain);
-        gain.connect(ringAudioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.46);
-      } catch(e) {}
-    }
-    playChime();
-    ringTimer = setInterval(playChime, 900);
+        if (AC) {
+          ringAudioCtx = new AC();
+          var srcNode = ringAudioCtx.createMediaElementSource(ringAudioEl);
+          var gainNode = ringAudioCtx.createGain();
+          gainNode.gain.value = 2.0;
+          srcNode.connect(gainNode);
+          gainNode.connect(ringAudioCtx.destination);
+        } else {
+          ringAudioEl.volume = 1.0;
+        }
+      }
+      if (ringAudioCtx && ringAudioCtx.state === 'suspended') {
+        ringAudioCtx.resume();
+      }
+      ringAudioEl.currentTime = 0;
+      ringAudioEl.play().catch(function() {});
+    } catch(e) {}
   };
 
   window.addEventListener('message', function(e) {

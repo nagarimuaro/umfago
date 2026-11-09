@@ -73,7 +73,7 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
-    router.replace('/auth/register');
+    router.replace('/auth/login');
   };
 
   return (

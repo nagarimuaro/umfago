@@ -21,14 +21,18 @@ interface MapLibreOSMViewProps {
   driverCoords?: { lat: number; lon: number } | null;
   driverVehicleType?: 'car' | 'motorcycle';
   customRouteCoords?: [number, number][] | null;
+  /** Pemicu eksplisit agar kamera peta langsung mengarah ke koordinat GPS pengguna saat tombol Lokasi Saya ditekan. */
+  cameraTarget?: { lat: number; lon: number; ts: number } | null;
+  /** Koordinat GPS live pengguna untuk ditampilkan sebagai titik biru pada peta. */
+  userGps?: { lat: number; lon: number } | null;
 }
 
-const FallbackCenter = { lat: -0.664159, lon: 100.939844 };
+const FallbackCenter = { lat: -0.9471, lon: 100.4172 };
 
 /**
- * Peta MapLibre GL JS + tile OpenStreetMap di dalam WebView.
+ * Peta interaktif OpenStreetMap di dalam WebView.
  * HTML dimuat sekali; marker, rute, dan kamera diperbarui lewat injectJavaScript
- * supaya peta tidak reload (dan tidak memicu moveend palsu) setiap koordinat berubah.
+ * supaya peta tidak reload setiap koordinat berubah.
  */
 export function MapLibreOSMView({
   height = Sizes.mapBackdrop,
@@ -40,6 +44,8 @@ export function MapLibreOSMView({
   driverCoords,
   driverVehicleType = 'motorcycle',
   customRouteCoords,
+  cameraTarget,
+  userGps,
 }: MapLibreOSMViewProps) {
   const { pickup, destination, route } = useBooking();
   const webViewRef = useRef<WebView<object>>(null);
@@ -67,17 +73,16 @@ body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e7eb; }
   height: 100%;
   position: relative;
   overflow: hidden;
-  perspective: 1000px;
+  background: #e5e7eb;
 }
 #map {
   position: absolute;
-  width: 460%;
-  height: 460%;
-  left: -180%;
-  top: -165%;
+  width: 120%;
+  height: 120%;
+  left: -10%;
+  top: -10%;
   background: #e5e7eb;
   transform-origin: 50% 50%;
-  will-change: transform;
 }
 body.tilted .mk {
   transform-origin: bottom center;
@@ -86,6 +91,21 @@ body.tilted .mk {
   box-shadow: 0 4px 12px rgba(0,0,0,0.35); display: flex; align-items: center;
   justify-content: center; color: #fff; font-weight: bold; font-size: 11px; }
 .mk-a { background: #10b981; } .mk-b { background: #ef4444; }
+.mk-gps-wrap {
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; position: relative;
+}
+.mk-gps-pulse {
+  position: absolute; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(37, 99, 235, 0.28); animation: gpsPulse 2s infinite ease-out;
+}
+.mk-gps-dot {
+  width: 14px; height: 14px; border-radius: 50%; background: #2563eb;
+  border: 2.5px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; z-index: 2;
+}
+@keyframes gpsPulse {
+  0% { transform: scale(0.5); opacity: 0.95; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
 .leaflet-marker-pane .mk-driver { z-index: 999999 !important; }
 .mk-driver { width: 58px; height: 58px; border-radius: 50%; background: #1a1a26;
   border: 3.5px solid #c8ff00; box-shadow: 0 6px 20px rgba(0,0,0,0.7);
@@ -100,16 +120,41 @@ ${LEAFLET_JS}
   <div id="map"></div>
 </div>
 <script>
-const map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0.1, zoomDelta: 0.5, maxZoom: 20 }).setView([${initial.lat}, ${initial.lon}], 17.5);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-  maxNativeZoom: 18,
+const map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0.25, zoomDelta: 0.5, maxZoom: 20 }).setView([${initial.lat}, ${initial.lon}], 16.5);
+const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  subdomains: 'abc',
+  maxNativeZoom: 19,
   maxZoom: 20,
-  keepBuffer: 16,
-  updateInterval: 50,
+  keepBuffer: 2,
   updateWhenIdle: false,
   updateWhenZooming: false
 }).addTo(map);
 
+tileLayer.on('tileerror', function(err) {
+  if (err && err.tile && err.coords) {
+    if (!err.tile._fallbackStep) {
+      err.tile._fallbackStep = 1;
+      err.tile.src =
+        'https://mt1.google.com/vt/lyrs=m&hl=id&x=' +
+        err.coords.x + '&y=' + err.coords.y + '&z=' + err.coords.z;
+    } else if (err.tile._fallbackStep === 1) {
+      err.tile._fallbackStep = 2;
+      err.tile.src =
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/' +
+        err.coords.z + '/' + err.coords.y + '/' + err.coords.x;
+    }
+  }
+});
+
+const markerUserGps = L.marker([${initial.lat}, ${initial.lon}], {
+  icon: L.divIcon({
+    className: 'mk-gps',
+    html: '<div class="mk-gps-wrap"><div class="mk-gps-pulse"></div><div class="mk-gps-dot"></div></div>',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
+  }),
+  zIndexOffset: 500
+});
 const markerA = L.marker([${initial.lat}, ${initial.lon}], {
   icon: L.divIcon({ className: 'mk mk-a', html: 'A', iconSize: [26, 26], iconAnchor: [13, 13] })
 });
@@ -307,6 +352,7 @@ map.on('moveend', () => {
 });
 
 window.setState = function (s) {
+  if (s.userGps) { markerUserGps.setLatLng([s.userGps[1], s.userGps[0]]).addTo(map); } else { map.removeLayer(markerUserGps); }
   if (s.pickup) { markerA.setLatLng([s.pickup[1], s.pickup[0]]).addTo(map); } else { map.removeLayer(markerA); }
   if (s.dest) { markerB.setLatLng([s.dest[1], s.dest[0]]).addTo(map); } else { map.removeLayer(markerB); }
   if (s.driver) {
@@ -360,8 +406,12 @@ window.focusDriver = function (lng, lat) {
 };
 
 window.focusOn = function (lng, lat) {
+  isTrackingDriver = false;
   document.body.classList.remove('tilted');
-  map.panTo([lat, lng], { animate: true, duration: 0.5 });
+  var zoomLvl = map.getZoom() < 16 ? 17 : map.getZoom();
+  map.setView([lat, lng], zoomLvl, { animate: false });
+  const c = map.getCenter();
+  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'center', lat: c.lat, lon: c.lng }));
 };
 
 window.fitAll = function (coords) {
@@ -370,9 +420,26 @@ window.fitAll = function (coords) {
   map.fitBounds(latlngs, { padding: [60, 60], maxZoom: 16 });
 };
 
+window.onMapResize = function () {
+  map.invalidateSize({ pan: false });
+};
+window.addEventListener('resize', window.onMapResize);
+if (typeof ResizeObserver !== 'undefined') {
+  var vpEl = document.getElementById('map-viewport');
+  if (vpEl) {
+    new ResizeObserver(function () {
+      window.onMapResize();
+    }).observe(vpEl);
+  }
+}
+
 setTimeout(function() {
+  window.onMapResize();
   window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
 }, 100);
+setTimeout(window.onMapResize, 350);
+setTimeout(window.onMapResize, 800);
+setTimeout(window.onMapResize, 1600);
 </script>
 </body></html>`,
     [initial, driverVehicleType]
@@ -393,13 +460,21 @@ setTimeout(function() {
     if (!ready) return;
     const effectiveRoute = customRouteCoords ?? coords ?? null;
     const state = {
+      userGps: userGps ? [userGps.lon, userGps.lat] : null,
       pickup: pLat != null && pLon != null ? [pLon, pLat] : null,
       dest: dLat != null && dLon != null ? [dLon, dLat] : null,
       driver: driverCoords ? [driverCoords.lon, driverCoords.lat] : null,
       route: effectiveRoute,
     };
     inject(`window.setState(${JSON.stringify(state)})`);
-  }, [ready, pLat, pLon, dLat, dLon, coords, customRouteCoords, driverCoords, inject]);
+  }, [ready, userGps, pLat, pLon, dLat, dLon, coords, customRouteCoords, driverCoords, inject]);
+
+  // Pemicu fokus kamera langsung saat pengguna menekan tombol "Lokasi Saya"
+  useEffect(() => {
+    if (!ready || !cameraTarget) return;
+    center.current = { lat: cameraTarget.lat, lon: cameraTarget.lon };
+    inject(`window.focusOn(${cameraTarget.lon}, ${cameraTarget.lat})`);
+  }, [ready, cameraTarget, inject]);
 
   // Kamera: pada peta interaktif, ikuti titik yang dipilih lewat pencarian/GPS
   // (titik hasil geser pin sudah berada di tengah, jadi tidak digerakkan ulang).
@@ -464,12 +539,19 @@ setTimeout(function() {
     <View style={[styles.container, { height }]}>
       <WebView<object>
         ref={webViewRef}
-        source={{ html }}
+        source={{ html, baseUrl: 'https://umfa-core.fazalabs.sbs' }}
         style={styles.webview}
         scrollEnabled={false}
         javaScriptEnabled
         domStorageEnabled
+        mixedContentMode="always"
         originWhitelist={['*']}
+        onLayout={() => {
+          webViewRef.current?.injectJavaScript('window.onMapResize && window.onMapResize(); true;');
+        }}
+        onLoadEnd={() => {
+          webViewRef.current?.injectJavaScript('window.onMapResize && window.onMapResize(); true;');
+        }}
         onMessage={handleMessage}
       />
 

@@ -12,14 +12,14 @@ export interface RadarMapViewProps {
 }
 
 export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSimulateOrder }) => {
-  const { currentLocation, isOnline, surgeAreas, currentOrder, activeRoute } = useDriver();
+  const { currentLocation, isOnline, surgeAreas, currentOrder, activeRoute, locateDriverNow } = useDriver();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isNightMode, setIsNightMode] = useState(true);
 
-  const lat = currentLocation?.latitude ?? -0.664159;
-  const lon = currentLocation?.longitude ?? 100.939844;
+  const lat = currentLocation?.latitude ?? -0.9471;
+  const lon = currentLocation?.longitude ?? 100.4172;
   const heading = currentLocation?.heading ?? 90;
 
   const mapHtml = useMemo(() => getDriverMapHtml(lat, lon), []);
@@ -107,8 +107,12 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     sendCommand({ type: 'UPDATE_STATE', state });
   }, [ready, lat, lon, heading, isOnline, currentOrder, surgeAreas, activeRoute]);
 
-  const handleRecenter = () => {
+  const handleRecenter = async () => {
     sendCommand({ type: 'RECENTER', lon, lat });
+    const fresh = await locateDriverNow(true);
+    if (fresh) {
+      sendCommand({ type: 'RECENTER', lon: fresh.longitude, lat: fresh.latitude });
+    }
   };
 
   const handleTogglePerspective = () => {
@@ -134,7 +138,7 @@ export const RadarMapView: React.FC<RadarMapViewProps> = ({ onSelectSurge, onSim
     <View style={styles.container}>
       {/* MapLibre GL OSM Navigation View for Web */}
       <iframe
-        key="driver-radar-map-v4"
+        key="driver-radar-map-v5"
         ref={iframeRef}
         srcDoc={mapHtml}
         style={{

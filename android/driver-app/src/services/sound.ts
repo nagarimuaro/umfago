@@ -1,4 +1,5 @@
 import { Platform, Vibration } from 'react-native';
+import { NOTIFY_SOUND_DATA_URI } from '../constants/notify-sound-asset';
 
 export class SoundService {
   private static webAudioElement: HTMLAudioElement | null = null;
@@ -7,15 +8,15 @@ export class SoundService {
   private static nativeRingCallback: ((playing: boolean) => void) | null = null;
 
   /**
-   * Register native WebView audio bridge so Android/iOS can play loud WebAudio synthesizer
-   * without requiring legacy expo-av native C++ module.
+   * Register native WebView audio bridge so Android/iOS plays the exact notify.wav
+   * recording inside WebView without requiring legacy expo-av native C++ module.
    */
   public static setNativeRingHandler(handler: ((playing: boolean) => void) | null) {
     this.nativeRingCallback = handler;
   }
 
   /**
-   * Play the high-volume incoming order dispatch alert sound & vibration.
+   * Play the high-volume incoming order dispatch alert sound (notify.wav) & vibration.
    * Loops until stopOrderAlert() is called.
    */
   public static async playOrderAlert(): Promise<void> {
@@ -26,7 +27,7 @@ export class SoundService {
       if (Platform.OS === 'web') {
         try {
           if (!this.webAudioElement && typeof window !== 'undefined') {
-            const audio = new window.Audio('/sound/notify.wav');
+            const audio = new window.Audio(NOTIFY_SOUND_DATA_URI);
             audio.loop = true;
             this.webAudioElement = audio;
 

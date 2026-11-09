@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { DriverProfile, SurgeArea } from '../types/driver';
 import { DriverOrder, DriverOrderStep } from '../types/order';
@@ -12,12 +12,14 @@ interface DriverContextType {
   driver: DriverProfile;
   isOnline: boolean;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
   currentOrder: DriverOrder | null;
   incomingOrder: DriverOrder | null;
   orderHistory: DriverOrder[];
   surgeAreas: SurgeArea[];
   currentLocation: { latitude: number; longitude: number; heading: number } | null;
   activeRoute: Array<[number, number]> | null;
+  locateDriverNow: (showAlertOnFail?: boolean) => Promise<{ latitude: number; longitude: number; heading: number } | null>;
   toggleOnline: () => Promise<void>;
   acceptIncomingOrder: () => Promise<void>;
   rejectIncomingOrder: () => void;
@@ -165,16 +167,17 @@ function mapBackendOrderToDriverOrder(o: any): DriverOrder {
 export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [driver, setDriver] = useState<DriverProfile>(INITIAL_DRIVER_PROFILE);
   const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(DriverApiService.getAuthToken()));
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [currentOrder, setCurrentOrder] = useState<DriverOrder | null>(null);
   const [incomingOrder, setIncomingOrder] = useState<DriverOrder | null>(null);
   const [orderHistory, setOrderHistory] = useState<DriverOrder[]>([]);
   const [surgeAreas, setSurgeAreas] = useState<SurgeArea[]>(SURGE_AREAS);
   const [activeRoute, setActiveRoute] = useState<Array<[number, number]> | null>(null);
-  // Default koordinat awal di Sijunjung, Sumatera Barat (selaras dengan titik order aplikasi penumpang)
+  // Default koordinat awal Sumatera Barat
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; heading: number } | null>({
-    latitude: -0.664159,
-    longitude: 100.939844,
+    latitude: -0.9471,
+    longitude: 100.4172,
     heading: 90,
   });
 
@@ -247,7 +250,12 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           name: profile?.name ? profile.name.replace(/\s*\(Driver.*\)/i, '') : prev.name,
           email: profile?.email || prev.email,
           phone: profile?.phone || prev.phone,
-          avatarUrl: dp?.selfie_photo_url || prev.avatarUrl,
+          avatarUrl:
+            dp?.selfie_photo_url && !String(dp.selfie_photo_url).includes('sample')
+              ? String(dp.selfie_photo_url).startsWith('http')
+                ? dp.selfie_photo_url
+                : `https://umfa-core.fazalabs.sbs${dp.selfie_photo_url}`
+              : prev.avatarUrl,
           isVerified: Boolean(profile?.is_verified || dp?.kyc_status === 'approved'),
           totalTrips:
             typeof dp?.total_trips === 'number' && dp.total_trips > 0
@@ -397,103 +405,179 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Initialize GPS & Compass Tracking + Backend Auth + Realtime WebSocket
-  useEffect(() => {
-    let isMounted = true;
-
-    // 1. Web Geolocation (jika diizinkan oleh browser)
-    let nativeGpsStartTimer: ReturnType<typeof setTimeout> | null = null;
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!isMounted) return;
+  // Ambil koordinat GPS perangkat secara langsung (baik saat startup maupun saat tombol Locate ditekan)
+  const locateDriverNow = useCallback(
+    async (showAlertOnFail = false): Promise<{ latitude: number; longitude: number; heading: number } | null> => {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: 15000,
+            });
+          });
           const coords = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
-            heading: pos.coords.heading ?? 90,
+            heading: pos.coords.heading && pos.coords.heading >= 0 ? Math.round(pos.coords.heading) : 90,
           };
           setCurrentLocation(coords);
           if (isOnlineRef.current) {
             DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, pos.coords.speed ?? 0);
           }
-        },
-        () => {
-          // Gunakan koordinat default Sijunjung (Sumatera Barat) dan kirim ke backend agar siap menerima order
-          const def = currentLocationRef.current || { latitude: -0.664159, longitude: 100.939844, heading: 90 };
+          return coords;
+        } catch {
+          return currentLocationRef.current;
+        }
+      }
+
+      try {
+        const existingPerm = await Location.getForegroundPermissionsAsync();
+        let status = existingPerm.status;
+        if (status !== 'granted') {
+          const reqPerm = await Location.requestForegroundPermissionsAsync();
+          status = reqPerm.status;
+        }
+        if (status !== 'granted') {
+          if (showAlertOnFail) {
+            Alert.alert(
+              'Izin Lokasi Diperlukan',
+              'Harap izinkan akses lokasi (GPS) pada pengaturan HP Anda agar peta dapat mengarah ke lokasi Anda.'
+            );
+          }
+          return null;
+        }
+
+        const servicesEnabled = await Location.hasServicesEnabledAsync().catch(() => true);
+        if (!servicesEnabled) {
+          if (showAlertOnFail) {
+            Alert.alert(
+              'GPS Belum Aktif',
+              'Harap aktifkan layanan lokasi (GPS) pada HP Anda lalu tekan kembali tombol lokasi.'
+            );
+          }
+          return null;
+        }
+
+        const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
+          Promise.race([
+            promise,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+          ]);
+
+        let loc = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+          4500
+        ).catch(() => null);
+
+        if (!loc) {
+          loc = await withTimeout(
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            4000
+          ).catch(() => null);
+        }
+
+        if (!loc) {
+          loc = await withTimeout(
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+            3000
+          ).catch(() => null);
+        }
+
+        if (!loc) {
+          loc = await Location.getLastKnownPositionAsync().catch(() => null);
+        }
+
+        if (loc?.coords) {
+          const coords = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            heading: loc.coords.heading && loc.coords.heading >= 0 ? Math.round(loc.coords.heading) : 90,
+          };
+          setCurrentLocation(coords);
           if (isOnlineRef.current) {
-            DriverWebSocketService.sendLocation(def.latitude, def.longitude, def.heading, 0);
+            DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, loc.coords.speed ?? 0);
           }
-        },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
-      );
-    } else if (Platform.OS !== 'web') {
-      const fetchSafePosition = async () => {
-        try {
-          let loc = await Location.getLastKnownPositionAsync();
-          if (!loc) {
-            loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          }
-          if (loc && isMounted) {
-            const coords = {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              heading: loc.coords.heading && loc.coords.heading >= 0 ? Math.round(loc.coords.heading) : 90,
-            };
-            setCurrentLocation(coords);
-            if (isOnlineRef.current) {
-              DriverWebSocketService.sendLocation(coords.latitude, coords.longitude, coords.heading, loc.coords.speed ?? 0);
-            }
-          }
-        } catch {
-          // Gunakan koordinat default jika GPS gagal
+          return coords;
         }
-      };
+      } catch {
+        // Ignore
+      }
 
-      nativeGpsStartTimer = setTimeout(async () => {
-        if (!isMounted) return;
-        try {
-          const existingPerm = await Location.getForegroundPermissionsAsync();
-          let status = existingPerm.status;
-          if (status !== 'granted') {
-            const reqPerm = await Location.requestForegroundPermissionsAsync();
-            status = reqPerm.status;
-          }
-          if (status === 'granted' && isMounted) {
-            await fetchSafePosition();
-            nativeGpsIntervalRef.current = setInterval(fetchSafePosition, 8000);
-          }
-        } catch {
-          // Abaikan jika permission / lokasi belum siap di perangkat
-        }
-      }, 600);
-    }
+      if (showAlertOnFail) {
+        Alert.alert(
+          'Lokasi Belum Terdeteksi',
+          'Pastikan GPS HP Anda aktif dan berada di area dengan sinyal lokasi yang baik.'
+        );
+      }
+      return null;
+    },
+    []
+  );
 
-    // 2. Authenticate with Backend & Connect Realtime Dispatch WebSocket
+  // Initialize GPS & Compass Tracking + Check Saved Backend Auth Session
+  useEffect(() => {
+    let isMounted = true;
+
+    let nativeGpsStartTimer: ReturnType<typeof setTimeout> | null = null;
+    nativeGpsStartTimer = setTimeout(async () => {
+      if (!isMounted) return;
+      await locateDriverNow(false);
+      if (Platform.OS !== 'web' && isMounted) {
+        nativeGpsIntervalRef.current = setInterval(() => {
+          locateDriverNow(false);
+        }, 8000);
+      }
+    }, 500);
+
+    // 2. Periksa apakah sudah ada sesi token login yang tersimpan (TIDAK auto-login diam-diam jika belum pernah login)
     (async () => {
       try {
-        let token = DriverApiService.getAuthToken();
-        if (!token) {
-          const res = await DriverApiService.login('driver.motor@openjek.id', 'password123');
-          if (res.success && res.token) {
-            token = res.token;
-            DriverWebSocketService.connect(token);
-          } else {
-            return;
+        if (!DriverApiService.hasSavedSession()) {
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setIsAuthLoading(false);
           }
-        } else {
-          DriverWebSocketService.connect(token);
+          return;
         }
 
-        if (token && token !== 'demo-local-session') {
+        const validToken = await DriverApiService.getValidToken();
+        if (!validToken) {
+          DriverApiService.clearSession();
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setIsAuthLoading(false);
+          }
+          return;
+        }
+
+        const profile = await DriverApiService.getProfile();
+        if (!profile || !profile.id) {
+          DriverApiService.clearSession();
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setIsAuthLoading(false);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setIsAuthenticated(true);
+          DriverWebSocketService.connect(validToken);
           if (isOnlineRef.current) {
             await DriverApiService.setDriverStatus('online');
           }
-          if (isMounted) {
-            await syncBackendData();
-          }
+          await syncBackendData();
         }
       } catch {
-        // Standalone cockpit active
+        if (isMounted) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
       }
     })();
 
@@ -606,7 +690,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       unsub();
     };
-  }, [syncBackendData]);
+  }, [syncBackendData, locateDriverNow]);
 
   const toggleOnline = useCallback(async () => {
     const nextState = !isOnline;
@@ -960,9 +1044,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       DriverWebSocketService.connect(res.token);
       await DriverApiService.setDriverStatus('online');
       await syncBackendData();
+      locateDriverNow(false).catch(() => {});
       return { success: true };
     },
-    [syncBackendData]
+    [syncBackendData, locateDriverNow]
   );
 
   const withdrawBalance = useCallback(
@@ -999,7 +1084,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const logoutDriver = useCallback(() => {
     DriverWebSocketService.disconnect();
-    DriverApiService.setAuthToken(null);
+    DriverApiService.clearSession();
     setIsOnline(false);
     setIsAuthenticated(false);
     setCurrentOrder(null);
@@ -1012,12 +1097,14 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         driver,
         isOnline,
         isAuthenticated,
+        isAuthLoading,
         currentOrder,
         incomingOrder,
         orderHistory,
         surgeAreas,
         currentLocation,
         activeRoute,
+        locateDriverNow,
         toggleOnline,
         acceptIncomingOrder,
         rejectIncomingOrder,

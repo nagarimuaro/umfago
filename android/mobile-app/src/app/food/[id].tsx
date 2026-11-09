@@ -44,7 +44,7 @@ export default function FoodStoreScreen() {
   const [remoteProducts, setRemoteProducts] = useState<FoodMenuItem[]>([]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !token) return;
 
     // Fetch from backend if numeric ID or exists
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

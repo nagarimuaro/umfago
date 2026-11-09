@@ -85,6 +85,8 @@ export default function ServiceScreen() {
   const [locating, setLocating] = useState(false);
   const [pinLocked, setPinLocked] = useState(false);
   const [confirmingLocation, setConfirmingLocation] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<{ lat: number; lon: number; ts: number } | null>(null);
+  const [userGps, setUserGps] = useState<{ lat: number; lon: number } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -103,14 +105,14 @@ export default function ServiceScreen() {
   /**
    * Mendapatkan koordinat GPS terkini secara cross-platform (Web Geolocation & Native expo-location)
    */
-  const getLiveCoords = async (): Promise<{ lat: number; lon: number } | null> => {
+  const getLiveCoords = async (showAlertOnFail = false): Promise<{ lat: number; lon: number } | null> => {
     // 1. Browser Geolocation (Web)
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 10000,
-            maximumAge: 60000,
+            timeout: 8000,
+            maximumAge: 30000,
             enableHighAccuracy: true,
           });
         });
@@ -118,7 +120,7 @@ export default function ServiceScreen() {
           return { lat: pos.coords.latitude, lon: pos.coords.longitude };
         }
       } catch {
-        // Fallback silently if browser geolocation is unavailable or permission denied
+        // Fallback if browser geolocation is unavailable
       }
     }
 
@@ -129,69 +131,120 @@ export default function ServiceScreen() {
         const req = await Location.requestForegroundPermissionsAsync();
         status = req.status;
       }
-      if (status === 'granted') {
-        let location = await Location.getLastKnownPositionAsync();
-        if (!location) {
-          location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
+      if (status !== 'granted') {
+        if (showAlertOnFail) {
+          Alert.alert(
+            'Izin Lokasi Diperlukan',
+            'Harap izinkan akses lokasi (GPS) pada pengaturan HP Anda agar peta dapat mengarah ke posisi Anda saat ini.'
+          );
         }
-        if (location?.coords) {
-          return { lat: location.coords.latitude, lon: location.coords.longitude };
+        return null;
+      }
+
+      const servicesEnabled = await Location.hasServicesEnabledAsync().catch(() => true);
+      if (!servicesEnabled) {
+        if (showAlertOnFail) {
+          Alert.alert(
+            'GPS Belum Aktif',
+            'Harap aktifkan layanan lokasi (GPS) pada HP Anda lalu tekan kembali tombol Lokasi Saya.'
+          );
         }
+        return null;
+      }
+
+      const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race([
+          promise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+
+      // Coba akurasi tinggi / seimbang untuk mendapatkan posisi GPS aktual terbaru
+      let location = await withTimeout(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+        4500
+      ).catch(() => null);
+
+      if (!location) {
+        location = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          4000
+        ).catch(() => null);
+      }
+
+      if (!location) {
+        location = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+          3000
+        ).catch(() => null);
+      }
+
+      if (!location) {
+        location = await Location.getLastKnownPositionAsync().catch(() => null);
+      }
+
+      if (location?.coords) {
+        return { lat: location.coords.latitude, lon: location.coords.longitude };
       }
     } catch {
-      // Fallback silently
+      // Ignore native location errors
+    }
+
+    if (showAlertOnFail) {
+      Alert.alert(
+        'Lokasi Belum Terdeteksi',
+        'Pastikan GPS HP Anda aktif dan berada di area dengan sinyal lokasi yang baik.'
+      );
     }
     return null;
   };
 
   /**
-   * Meminta izin akses lokasi GPS & mengarahkan titik jemput ke lokasi saat ini
+   * Meminta izin akses lokasi GPS & langsung mengarahkan kamera peta + titik jemput ke lokasi pengguna saat ini
    */
-  const handleLocateMe = useCallback(async () => {
-    setLocating(true);
-    try {
-      const coords = await getLiveCoords();
-      if (coords) {
-        const addressName = await reversePhotonGeocode(coords.lat, coords.lon);
-        setPickup({
-          id: 'gps-current',
-          label: 'Lokasi Saya (Saat Ini)',
-          address: addressName,
-          lat: coords.lat,
-          lon: coords.lon,
-        });
-        setPickupInput(addressName);
-        setPinLocked(true);
-        return;
+  const handleLocateMe = useCallback(
+    async (isManualTap = false) => {
+      setLocating(true);
+      try {
+        const coords = await getLiveCoords(isManualTap);
+        if (coords) {
+          const nowTs = Date.now();
+          setUserGps({ lat: coords.lat, lon: coords.lon });
+          setCameraTarget({ lat: coords.lat, lon: coords.lon, ts: nowTs });
+          setPinLocked(true);
+
+          // Set koordinat jemput seketika agar kamera peta langsung berpindah tanpa menunggu geocoding selesai
+          setPickup({
+            id: `gps-current-${nowTs}`,
+            label: 'Lokasi Saya (Saat Ini)',
+            address: pickupInput || 'Mendeteksi nama jalan...',
+            lat: coords.lat,
+            lon: coords.lon,
+          });
+
+          const addressName = await reversePhotonGeocode(coords.lat, coords.lon);
+          setPickup({
+            id: `gps-current-${nowTs}`,
+            label: 'Lokasi Saya (Saat Ini)',
+            address: addressName,
+            lat: coords.lat,
+            lon: coords.lon,
+          });
+          setPickupInput(addressName);
+        }
+      } catch {
+        // Ignored
+      } finally {
+        setLocating(false);
       }
+    },
+    [setPickup, pickupInput]
+  );
 
-      const fallbackLat = -0.664159;
-      const fallbackLon = 100.939844;
-      const addressName = await reversePhotonGeocode(fallbackLat, fallbackLon);
-      setPickup({
-        id: 'gps-fallback',
-        label: 'Lokasi Saya',
-        address: addressName,
-        lat: fallbackLat,
-        lon: fallbackLon,
-      });
-      setPickupInput(addressName);
-      setPinLocked(true);
-    } catch {
-      // Ignored
-    } finally {
-      setLocating(false);
-    }
-  }, [setPickup]);
-
-  // Otomatis sinkronkan titik jemput ke lokasi pengguna saat ini ketika halaman pertama dibuka
+  // Otomatis sinkronkan titik jemput ke lokasi GPS pengguna saat halaman pertama dibuka
   useEffect(() => {
-    if (!pickup || pickup.id === 'current' || pickup.id === 'gps-fallback') {
-      handleLocateMe();
-    }
-  }, [handleLocateMe]);
+    handleLocateMe(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mengunci lokasi titik jemput atau tujuan saat tombol "Pilih lokasi ini" pada pin ditekan
   const handleConfirmMapLocation = useCallback(
@@ -233,6 +286,11 @@ export default function ServiceScreen() {
 
   const quickActions = useMemo<readonly QuickAction[]>(
     () => [
+      {
+        id: 'locate-me',
+        label: 'Lokasi Saya',
+        icon: 'my-location',
+      },
       ...SavedPlaces.filter((place) => place.id === 'home' || place.id === 'work').map((place) => ({
         id: place.id,
         label: place.label,
@@ -246,19 +304,24 @@ export default function ServiceScreen() {
   const choose = useCallback(
     (place: Place) => {
       if (place.id === 'action-current-loc') {
-        handleLocateMe();
-        setActiveField('destination');
+        handleLocateMe(true);
         return;
       }
       if (activeField === 'pickup') {
         setPickup(place);
         setPickupInput(place.address || place.label);
         setPinLocked(true);
+        if (place.lat != null && place.lon != null) {
+          setCameraTarget({ lat: place.lat, lon: place.lon, ts: Date.now() });
+        }
         setActiveField('destination');
       } else {
         setDestination(place);
         setDestInput(place.address || place.label);
         setPinLocked(true);
+        if (place.lat != null && place.lon != null) {
+          setCameraTarget({ lat: place.lat, lon: place.lon, ts: Date.now() });
+        }
       }
     },
     [activeField, setPickup, setDestination, handleLocateMe]
@@ -266,10 +329,14 @@ export default function ServiceScreen() {
 
   const handleQuickAction = useCallback(
     (id: string) => {
+      if (id === 'locate-me') {
+        handleLocateMe(true);
+        return;
+      }
       const place = SavedPlaces.find((candidate) => candidate.id === id);
       if (place) choose(place);
     },
-    [choose]
+    [choose, handleLocateMe]
   );
 
   const handlePromo = useCallback(
@@ -357,26 +424,17 @@ export default function ServiceScreen() {
     };
 
     if (!term) {
-      if (activeField === 'pickup') {
-        return [useCurrentLocItem, ...SavedPlaces];
-      }
-      return SavedPlaces;
+      return [useCurrentLocItem, ...SavedPlaces];
     }
     if (photonSuggestions.length > 0) {
-      if (activeField === 'pickup') {
-        return [useCurrentLocItem, ...photonSuggestions];
-      }
-      return photonSuggestions;
+      return [useCurrentLocItem, ...photonSuggestions];
     }
     const filtered = SavedPlaces.filter(
       (place) =>
         place.label.toLowerCase().includes(term) || place.address.toLowerCase().includes(term)
     );
-    if (activeField === 'pickup') {
-      return [useCurrentLocItem, ...filtered];
-    }
-    return filtered;
-  }, [currentQuery, photonSuggestions, activeField, pickupInput, pickup?.lat, pickup?.lon]);
+    return [useCurrentLocItem, ...filtered];
+  }, [currentQuery, photonSuggestions, pickupInput, pickup?.lat, pickup?.lon]);
 
   const picking = !destination || activeField === 'pickup';
 
@@ -388,6 +446,8 @@ export default function ServiceScreen() {
         pinLocked={pinLocked}
         confirming={confirmingLocation}
         onUnlock={() => setPinLocked(false)}
+        cameraTarget={cameraTarget}
+        userGps={userGps}
       />
 
       <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
@@ -405,7 +465,7 @@ export default function ServiceScreen() {
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Arahkan ke lokasi saya"
-        onPress={handleLocateMe}
+        onPress={() => handleLocateMe(true)}
         disabled={locating}
         activeOpacity={0.8}
         style={styles.floatingGpsBtn}>

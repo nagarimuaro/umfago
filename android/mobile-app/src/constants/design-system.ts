@@ -140,10 +140,10 @@ export const Sizes = {
   metaDot: 3,
   /** Unread dot on the food app bar's basket button, `w-2 h-2`. */
   badgeDot: 8,
-  /** Map backdrop behind the booking sheet, `h-[442px]`. */
-  mapBackdrop: 442,
-  /** Booking sheet resting height, `h-[574px]`. */
-  sheetHeight: 574,
+  /** Map backdrop behind the booking sheet, `h-[520px]`. */
+  mapBackdrop: 520,
+  /** Booking sheet resting height, `h-[360px]` so 50%+ of phone screen shows the live map. */
+  sheetHeight: 360,
   /** Drag handle on the booking sheet, `w-12 h-1.5`. */
   sheetHandleWidth: 48,
   sheetHandleHeight: 6,

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -7,9 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+
+import { reversePhotonGeocode } from '@/services/photon';
 
 import { Button } from '@/components/ds/button';
 import { Card } from '@/components/ds/card';
@@ -95,6 +100,44 @@ export default function FoodAddressScreen() {
     setSelected(addr);
   };
 
+  const [locatingGps, setLocatingGps] = useState(false);
+
+  const handleUseCurrentLocation = async () => {
+    setLocatingGps(true);
+    try {
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+      }
+      if (status !== 'granted') {
+        Alert.alert('Izin Lokasi Diperlukan', 'Harap aktifkan izin lokasi GPS pada pengaturan HP Anda.');
+        return;
+      }
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+      if (!loc) {
+        loc = await Location.getLastKnownPositionAsync().catch(() => null);
+      }
+      if (loc?.coords) {
+        const addrName = await reversePhotonGeocode(loc.coords.latitude, loc.coords.longitude);
+        const currentLocAddr: FoodAddress = {
+          id: `current-gps-${Date.now()}`,
+          label: 'Lokasi Saya (Saat Ini)',
+          address: addrName,
+          area: 'Koordinat GPS Aktif',
+          icon: 'my-location',
+        };
+        setSelected(currentLocAddr);
+      } else {
+        Alert.alert('GPS Belum Siap', 'Pastikan layanan lokasi (GPS) pada HP Anda aktif.');
+      }
+    } catch {
+      Alert.alert('GPS Belum Siap', 'Gagal mendapatkan lokasi GPS dari perangkat.');
+    } finally {
+      setLocatingGps(false);
+    }
+  };
+
   const handleConfirm = () => {
     setAddress(selected);
     router.back();
@@ -145,23 +188,18 @@ export default function FoodAddressScreen() {
           {/* Use Current Location Button */}
           <TouchableOpacity
             accessibilityRole="button"
-            onPress={() => {
-              const currentLocAddr: FoodAddress = {
-                id: 'current-gps',
-                label: 'Current Location',
-                address: 'Jl. Sudirman No. 45, Jakarta Selatan',
-                area: 'Senayan, Jakarta',
-                icon: 'my-location',
-                note: 'Tinggalkan di lobi gedung',
-              };
-              setSelected(currentLocAddr);
-            }}
+            disabled={locatingGps}
+            onPress={handleUseCurrentLocation}
             style={styles.currentLocBtn}>
             <View style={styles.currentLocIconCircle}>
-              <Icon name="my-location" size={18} color={Palette.primary} />
+              {locatingGps ? (
+                <ActivityIndicator size="small" color={Palette.primary} />
+              ) : (
+                <Icon name="my-location" size={18} color={Palette.primary} />
+              )}
             </View>
             <DSText variant="bodyMdSemi" color={Palette.onSurface} style={styles.currentLocText}>
-              {FoodAddressCopy.currentLocation}
+              {locatingGps ? 'Mendeteksi Lokasi GPS...' : FoodAddressCopy.currentLocation}
             </DSText>
             <Icon name="chevron-right" size={20} color={Palette.secondary} />
           </TouchableOpacity>

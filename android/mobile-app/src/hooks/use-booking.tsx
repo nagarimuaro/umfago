@@ -1,8 +1,10 @@
+import * as Location from 'expo-location';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
 import { AvailablePromos, FareRules } from '@/constants/pricing';
 import { calculateFare, EmptyFare } from '@/lib/fare';
+import { reversePhotonGeocode } from '@/services/photon';
 import { getValhallaRoute } from '@/services/valhalla';
 import { useAuth } from '@/hooks/use-auth';
 import type {
@@ -101,6 +103,76 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<BookingState>(InitialState);
   const [backendQuote, setBackendQuote] = useState<BackendQuote | null>(null);
 
+  // Sinkronkan lokasi GPS perangkat secara otomatis sejak awal agar peta langsung berada di posisi pengguna
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              if (!mounted) return;
+              const lat = pos.coords.latitude;
+              const lon = pos.coords.longitude;
+              const addr = await reversePhotonGeocode(lat, lon);
+              if (!mounted) return;
+              setState((s) =>
+                !s.pickup || s.pickup.id === 'current'
+                  ? {
+                      ...s,
+                      pickup: {
+                        id: `gps-init-${Date.now()}`,
+                        label: 'Lokasi Saya (Saat Ini)',
+                        address: addr,
+                        lat,
+                        lon,
+                      },
+                    }
+                  : s
+              );
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 6000 }
+          );
+          return;
+        }
+
+        const perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status === 'granted') {
+          let loc = await Location.getLastKnownPositionAsync().catch(() => null);
+          if (!loc) {
+            loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+          }
+          if (loc?.coords && mounted) {
+            const lat = loc.coords.latitude;
+            const lon = loc.coords.longitude;
+            const addr = await reversePhotonGeocode(lat, lon);
+            if (!mounted) return;
+            setState((s) =>
+              !s.pickup || s.pickup.id === 'current'
+                ? {
+                    ...s,
+                    pickup: {
+                      id: `gps-init-${Date.now()}`,
+                      label: 'Lokasi Saya (Saat Ini)',
+                      address: addr,
+                      lat,
+                      lon,
+                    },
+                  }
+                : s
+            );
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Pemicu kalkulasi rute jalan raya Valhalla setiap kali koordinat pickup, destination, atau service berubah
   useEffect(() => {
     if (
@@ -150,7 +222,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
   // Ambil estimasi tarif dan aturan harga minimum langsung dari backend (/api/fare/estimate)
   useEffect(() => {
-    if (!state.pickup?.lat || !state.pickup?.lon || !state.destination?.lat || !state.destination?.lon) {
+    if (!token || !state.pickup?.lat || !state.pickup?.lon || !state.destination?.lat || !state.destination?.lon) {
       setBackendQuote(null);
       return;
     }
