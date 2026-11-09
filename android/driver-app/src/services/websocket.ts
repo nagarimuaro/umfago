@@ -17,8 +17,8 @@ export class DriverWebSocketService {
   private static heartbeatTimer: any = null;
   private static isExplicitlyClosed = false;
   private static currentToken: string | null = null;
-  private static lastLat = -6.1952;
-  private static lastLon = 106.8231;
+  private static lastLat = -0.664159;
+  private static lastLon = 100.939844;
   private static lastHeading = 90;
   private static tokenSubInitialized = false;
 
@@ -115,12 +115,29 @@ export class DriverWebSocketService {
             if (this.currentToken && !this.isExplicitlyClosed) {
               this.connect(this.currentToken);
             }
-          }, 8000);
+          }, 2500);
         }
       };
     } catch (e) {
       console.warn('[DriverWS] Connection creation failed:', e);
     }
+  }
+
+  public static async reconnectNow() {
+    clearTimeout(this.reconnectTimer);
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.sendLocation(this.lastLat, this.lastLon, this.lastHeading, 0);
+      return;
+    }
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch {
+        // ignore
+      }
+      this.socket = null;
+    }
+    await this.connect(this.currentToken || undefined);
   }
 
   /**

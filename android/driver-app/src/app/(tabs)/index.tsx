@@ -20,6 +20,7 @@ export default function DriverHomeScreen() {
     currentOrder,
     acceptIncomingOrder,
     rejectIncomingOrder,
+    dismissIncomingOrderTimeout,
     simulateIncomingOrder,
   } = useDriver();
 
@@ -132,6 +133,7 @@ export default function DriverHomeScreen() {
         order={incomingOrder}
         onAccept={acceptIncomingOrder}
         onReject={rejectIncomingOrder}
+        onTimeout={dismissIncomingOrderTimeout}
       />
     </SafeAreaView>
   );

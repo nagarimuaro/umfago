@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { DriverProfile, SurgeArea } from '../types/driver';
 import { DriverOrder, DriverOrderStep } from '../types/order';
@@ -23,6 +23,7 @@ interface DriverContextType {
   toggleOnline: () => Promise<void>;
   acceptIncomingOrder: () => Promise<void>;
   rejectIncomingOrder: () => void;
+  dismissIncomingOrderTimeout: () => void;
   advanceOrderStep: () => Promise<void>;
   cancelActiveOrder: (reason?: string) => Promise<void>;
   simulateIncomingOrder: () => Promise<void>;
@@ -174,10 +175,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [orderHistory, setOrderHistory] = useState<DriverOrder[]>([]);
   const [surgeAreas, setSurgeAreas] = useState<SurgeArea[]>(SURGE_AREAS);
   const [activeRoute, setActiveRoute] = useState<Array<[number, number]> | null>(null);
-  // Default koordinat awal Sumatera Barat
+  // Default koordinat awal Muaro Sijunjung, Sumatera Barat
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; heading: number } | null>({
-    latitude: -0.9471,
-    longitude: 100.4172,
+    latitude: -0.664159,
+    longitude: 100.939844,
     heading: 90,
   });
 
@@ -187,6 +188,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const routeIndexRef = useRef<number>(0);
   const isOnlineRef = useRef<boolean>(isOnline);
   const currentLocationRef = useRef(currentLocation);
+  const rejectedOrderIdsRef = useRef<Set<string>>(new Set());
+  const currentOrderRef = useRef<DriverOrder | null>(currentOrder);
+  const incomingOrderRef = useRef<DriverOrder | null>(incomingOrder);
+  const vehicleTypeRef = useRef<'motorcycle' | 'car'>(driver.vehicle.type);
 
   useEffect(() => {
     isOnlineRef.current = isOnline;
@@ -195,6 +200,44 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     currentLocationRef.current = currentLocation;
   }, [currentLocation]);
+
+  useEffect(() => {
+    currentOrderRef.current = currentOrder;
+  }, [currentOrder]);
+
+  useEffect(() => {
+    incomingOrderRef.current = incomingOrder;
+  }, [incomingOrder]);
+
+  useEffect(() => {
+    vehicleTypeRef.current = driver.vehicle.type;
+  }, [driver.vehicle.type]);
+
+  const checkPendingOrders = useCallback(async () => {
+    if (!isOnlineRef.current || currentOrderRef.current || incomingOrderRef.current) {
+      return;
+    }
+    const pending = await DriverApiService.getPendingIncomingOrder(
+      vehicleTypeRef.current,
+      rejectedOrderIdsRef.current
+    );
+    if (!pending || currentOrderRef.current || incomingOrderRef.current) {
+      return;
+    }
+    const orderUuid = String(pending.uuid || pending.id || '');
+    if (!orderUuid || rejectedOrderIdsRef.current.has(orderUuid)) {
+      return;
+    }
+    const mapped = mapBackendOrderToDriverOrder(pending);
+    setIncomingOrder((prev) =>
+      prev || {
+        ...mapped,
+        step: 'offered',
+        status: 'searching',
+        expiresInSeconds: 30,
+      }
+    );
+  }, []);
 
   const syncBackendData = useCallback(async () => {
     try {
@@ -355,6 +398,30 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (activeBackendOrder) {
           const restored = mapBackendOrderToDriverOrder(activeBackendOrder);
           setCurrentOrder((prev) => prev || restored);
+        }
+      }
+
+      if (
+        isOnlineRef.current &&
+        !currentOrderRef.current &&
+        !incomingOrderRef.current &&
+        Array.isArray(ordersData?.available_orders) &&
+        ordersData.available_orders.length > 0
+      ) {
+        const candidate = ordersData.available_orders.find((o: any) => {
+          const uuid = String(o?.uuid || o?.id || '');
+          return uuid && !rejectedOrderIdsRef.current.has(uuid) && (!o.status || o.status === 'searching');
+        });
+        if (candidate) {
+          const mappedCandidate = mapBackendOrderToDriverOrder(candidate);
+          setIncomingOrder((prev) =>
+            prev || {
+              ...mappedCandidate,
+              step: 'offered',
+              status: 'searching',
+              expiresInSeconds: 30,
+            }
+          );
         }
       }
 
@@ -593,7 +660,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (payload.type === 'incoming_order' || payload.type === 'order_offered') {
         const orderUuid = payload.order_uuid || payload.order?.uuid;
-        if (!orderUuid) return;
+        if (!orderUuid || rejectedOrderIdsRef.current.has(String(orderUuid))) return;
 
         const fare = typeof payload.fare_amount === 'number' ? payload.fare_amount : payload.order?.fare || 10000;
         const pLat = payload.pickup_lat ?? payload.order?.origin_lat ?? -0.664159;
@@ -701,7 +768,55 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
 
     await DriverApiService.setDriverStatus(nextState ? 'online' : 'offline');
-  }, [isOnline]);
+    if (nextState) {
+      await DriverWebSocketService.reconnectNow();
+      const loc = currentLocationRef.current || { latitude: -0.664159, longitude: 100.939844, heading: 90 };
+      DriverWebSocketService.sendLocation(loc.latitude, loc.longitude, loc.heading, 0);
+      checkPendingOrders().catch(() => {});
+    }
+  }, [isOnline, checkPendingOrders]);
+
+  // Saat pengguna berpindah kembali dari aplikasi Penumpang ke aplikasi Driver di HP (AppState -> active),
+  // langsung hubungkan kembali WebSocket, pastikan status online aktif, dan periksa order baru.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        DriverWebSocketService.reconnectNow().catch(() => {});
+        if (isOnlineRef.current) {
+          DriverApiService.setDriverStatus('online').catch(() => {});
+          locateDriverNow(false).catch(() => {});
+          checkPendingOrders().catch(() => {});
+        }
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [isAuthenticated, locateDriverNow, checkPendingOrders]);
+
+  // Polling aktif setiap 3 detik saat driver Online & belum memegang order,
+  // memastikan order dari aplikasi pengguna di HP tetap masuk meskipun WebSocket sempat terputus di background.
+  useEffect(() => {
+    if (!isAuthenticated || !isOnline || currentOrder || incomingOrder) {
+      return;
+    }
+
+    const immediateTimer = setTimeout(() => {
+      checkPendingOrders().catch(() => {});
+    }, 600);
+
+    const pollInterval = setInterval(() => {
+      checkPendingOrders().catch(() => {});
+    }, 3000);
+
+    return () => {
+      clearTimeout(immediateTimer);
+      clearInterval(pollInterval);
+    };
+  }, [isAuthenticated, isOnline, currentOrder, incomingOrder, checkPendingOrders]);
 
   const acceptIncomingOrder = useCallback(async () => {
     if (!incomingOrder) return;
@@ -741,7 +856,19 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const rejectIncomingOrder = useCallback(() => {
     if (incomingOrder?.id) {
+      rejectedOrderIdsRef.current.add(String(incomingOrder.id));
       DriverApiService.rejectOrder(incomingOrder.id);
+    }
+    setIncomingOrder(null);
+  }, [incomingOrder]);
+
+  const dismissIncomingOrderTimeout = useCallback(() => {
+    if (incomingOrder?.id) {
+      const expiredId = String(incomingOrder.id);
+      rejectedOrderIdsRef.current.add(expiredId);
+      setTimeout(() => {
+        rejectedOrderIdsRef.current.delete(expiredId);
+      }, 20000);
     }
     setIncomingOrder(null);
   }, [incomingOrder]);
@@ -1108,6 +1235,7 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleOnline,
         acceptIncomingOrder,
         rejectIncomingOrder,
+        dismissIncomingOrderTimeout,
         advanceOrderStep,
         cancelActiveOrder,
         simulateIncomingOrder,

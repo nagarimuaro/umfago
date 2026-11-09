@@ -116,14 +116,20 @@ func (w *MatchingWorker) Dispatch(ctx context.Context, payload OrderCreatedPaylo
 			log.Printf("[MatchingWorker] GeoSearch failed: %v", err)
 		}
 	}
-	if len(nearby) == 0 && w.hub != nil {
-		nearby = w.hub.OnlineDriverIDs()
+	if w.hub != nil {
+		seen := make(map[uint]struct{}, len(nearby))
+		for _, id := range nearby {
+			seen[id] = struct{}{}
+		}
+		for _, id := range w.hub.OnlineDriverIDs() {
+			if _, ok := seen[id]; !ok {
+				seen[id] = struct{}{}
+				nearby = append(nearby, id)
+			}
+		}
 	}
 
 	candidates := w.filterEligible(w.excludeOffered(payload.OrderUUID, nearby), payload.VehicleType, maxCandidates)
-	if len(candidates) == 0 && w.hub != nil {
-		candidates = w.filterEligible(w.excludeOffered(payload.OrderUUID, w.hub.OnlineDriverIDs()), payload.VehicleType, maxCandidates)
-	}
 
 	if len(candidates) == 0 {
 		// Jika masih ada tawaran aktif yang belum dijawab untuk order ini,

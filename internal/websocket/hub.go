@@ -74,6 +74,9 @@ type Hub struct {
 	done       chan struct{}
 	closeOnce  sync.Once
 
+	// OnConnect dipanggil setiap kali koneksi baru milik seorang user terdaftar.
+	OnConnect func(userID uint, role string)
+
 	// OnDisconnect dipanggil setiap kali koneksi terakhir milik seorang user lepas.
 	OnDisconnect func(userID uint, role string)
 }
@@ -148,6 +151,9 @@ func (h *Hub) Run() {
 			h.clients[client.ID][client] = struct{}{}
 			h.mu.Unlock()
 			log.Printf("[WS Hub] Client connected: user_id=%d role=%s", client.ID, client.Role)
+			if h.OnConnect != nil {
+				go h.OnConnect(client.ID, client.Role)
+			}
 
 		case client := <-h.unregister:
 			h.mu.Lock()

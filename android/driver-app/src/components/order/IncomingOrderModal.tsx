@@ -19,9 +19,10 @@ interface IncomingOrderModalProps {
   order: DriverOrder | null;
   onAccept: () => void;
   onReject: () => void;
+  onTimeout?: () => void;
 }
 
-export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, onAccept, onReject }) => {
+export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, onAccept, onReject, onTimeout }) => {
   const [timeLeft, setTimeLeft] = useState<number>(15);
 
   // Sound & Countdown Timer
@@ -41,7 +42,11 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
         if (prev <= 1) {
           clearInterval(timer);
           SoundService.stopOrderAlert();
-          onReject();
+          if (onTimeout) {
+            onTimeout();
+          } else {
+            onReject();
+          }
           return 0;
         }
         return prev - 1;
@@ -52,7 +57,7 @@ export const IncomingOrderModal: React.FC<IncomingOrderModalProps> = ({ order, o
       clearInterval(timer);
       SoundService.stopOrderAlert();
     };
-  }, [order, onReject]);
+  }, [order, onReject, onTimeout]);
 
   const handleAccept = () => {
     SoundService.stopOrderAlert();

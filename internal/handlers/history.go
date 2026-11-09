@@ -50,7 +50,7 @@ type orderSummary struct {
 // netColumn adalah kolom yang dijumlahkan sebagai "bersih" bagi peran tersebut:
 // driver menghitung driver_earning, sedangkan penumpang dan merchant memakai
 // fare_amount.
-func (h *HistoryHandler) listOrders(c *gin.Context, scope func(*gorm.DB) *gorm.DB, netColumn string) {
+func (h *HistoryHandler) listOrders(c *gin.Context, scope func(*gorm.DB) *gorm.DB, netColumn string, extra ...map[string]interface{}) {
 	from, to := parseDateRange(c)
 
 	scoped := func() *gorm.DB {
@@ -90,7 +90,7 @@ func (h *HistoryHandler) listOrders(c *gin.Context, scope func(*gorm.DB) *gorm.D
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"orders":  orders,
 		"summary": summary,
 		"meta": gin.H{
@@ -100,7 +100,13 @@ func (h *HistoryHandler) listOrders(c *gin.Context, scope func(*gorm.DB) *gorm.D
 			"from":     from,
 			"to":       to,
 		},
-	})
+	}
+	for _, ext := range extra {
+		for k, v := range ext {
+			resp[k] = v
+		}
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // listWalletTransactions — riwayat dompet yang dibatasi jenis transaksi
@@ -215,9 +221,47 @@ func (h *HistoryHandler) CustomerWalletHistory(c *gin.Context) {
 // DriverOrders — GET /api/driver/orders
 func (h *HistoryHandler) DriverOrders(c *gin.Context) {
 	userID := c.GetUint(middleware.UserIDKey)
+	role := models.RoleCode(c.GetString(middleware.UserRoleKey))
+	vehicleType := models.VehicleTypeForRole(role)
+
+	var availableOrders []models.Order
+	if c.Query("include_available") == "1" && vehicleType != "" {
+		cutoff := time.Now().Add(-15 * time.Minute)
+		_ = h.db.Preload("Rider").Preload("Merchant").
+			Where("orders.status = ? AND orders.vehicle_type = ? AND orders.created_at >= ?", models.StatusSearching, vehicleType, cutoff).
+			Where("orders.uuid NOT IN (?)",
+				h.db.Model(&models.OrderOffer{}).
+					Select("order_uuid").
+					Where("driver_id = ? AND status = ?", userID, models.OfferRejected),
+			).
+			Order("orders.created_at desc").
+			Limit(5).
+			Find(&availableOrders).Error
+
+		for _, ord := range availableOrders {
+			var existing models.OrderOffer
+			err := h.db.Where("order_uuid = ? AND driver_id = ?", ord.UUID, userID).First(&existing).Error
+			if err != nil {
+				_ = h.db.Create(&models.OrderOffer{
+					OrderUUID: ord.UUID,
+					DriverID:  userID,
+					Status:    models.OfferOffered,
+					ExpiresAt: time.Now().Add(60 * time.Second),
+				}).Error
+			} else if existing.Status == models.OfferExpired {
+				_ = h.db.Model(&existing).Updates(map[string]interface{}{
+					"status":     models.OfferOffered,
+					"expires_at": time.Now().Add(60 * time.Second),
+				}).Error
+			}
+		}
+	}
+
 	h.listOrders(c, func(q *gorm.DB) *gorm.DB {
 		return q.Where("orders.driver_id = ?", userID)
-	}, "driver_earning")
+	}, "driver_earning", map[string]interface{}{
+		"available_orders": availableOrders,
+	})
 }
 
 // DriverWalletHistory — GET /api/driver/wallet/history

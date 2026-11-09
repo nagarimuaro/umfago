@@ -123,6 +123,102 @@ func NewServer() *Server {
 		rmq = nil
 	}
 
+	// Saat driver terhubung kembali ke WebSocket (misal setelah beralih aplikasi di HP),
+	// pulihkan status online bila akun terverifikasi dan kirim order searching yang masih aktif.
+	hub.OnConnect = func(userID uint, role string) {
+		roleCode := models.RoleCode(role)
+		if !models.IsDriverRole(roleCode) {
+			return
+		}
+		now := time.Now()
+		_ = database.Model(&models.User{}).
+			Where("id = ? AND is_verified = ? AND is_active = ?", userID, true, true).
+			Updates(map[string]interface{}{"is_online": true, "online_since": now}).Error
+
+		vehicleType := models.VehicleTypeForRole(roleCode)
+		if vehicleType == "" {
+			return
+		}
+
+		// Pastikan driver tidak sedang memegang order berjalan
+		var ongoing int64
+		database.Model(&models.Order{}).
+			Where("driver_id = ? AND status IN ?", userID,
+				[]models.OrderStatus{models.StatusAccepted, models.StatusArrived, models.StatusInProgress}).
+			Count(&ongoing)
+		if ongoing > 0 {
+			return
+		}
+
+		cutoff := now.Add(-10 * time.Minute)
+		var pendingOrder models.Order
+		err := database.Preload("Rider").
+			Where("status = ? AND vehicle_type = ? AND created_at >= ?", models.StatusSearching, vehicleType, cutoff).
+			Where("uuid NOT IN (?)",
+				database.Model(&models.OrderOffer{}).
+					Select("order_uuid").
+					Where("driver_id = ? AND status = ?", userID, models.OfferRejected),
+			).
+			Order("created_at desc").
+			First(&pendingOrder).Error
+		if err != nil || pendingOrder.UUID == "" {
+			return
+		}
+
+		expiresAt := now.Add(45 * time.Second)
+		var existingOffer models.OrderOffer
+		if err := database.Where("order_uuid = ? AND driver_id = ?", pendingOrder.UUID, userID).First(&existingOffer).Error; err != nil {
+			_ = database.Create(&models.OrderOffer{
+				OrderUUID: pendingOrder.UUID,
+				DriverID:  userID,
+				Status:    models.OfferOffered,
+				ExpiresAt: expiresAt,
+			}).Error
+		} else if existingOffer.Status == models.OfferExpired {
+			_ = database.Model(&existingOffer).Updates(map[string]interface{}{
+				"status":     models.OfferOffered,
+				"expires_at": expiresAt,
+			}).Error
+		}
+
+		riderName := "Pelanggan UmfaGo"
+		riderPhone := "081234567890"
+		if pendingOrder.Rider != nil {
+			if pendingOrder.Rider.Name != "" {
+				riderName = pendingOrder.Rider.Name
+			}
+			if pendingOrder.Rider.Phone != "" {
+				riderPhone = pendingOrder.Rider.Phone
+			}
+		}
+
+		offerPayload, err := json.Marshal(map[string]interface{}{
+			"order_uuid":      pendingOrder.UUID,
+			"pickup_lat":      pendingOrder.PickupLat,
+			"pickup_lon":      pendingOrder.PickupLon,
+			"pickup_address":  pendingOrder.PickupAddress,
+			"dropoff_lat":     pendingOrder.DropoffLat,
+			"dropoff_lon":     pendingOrder.DropoffLon,
+			"dropoff_address": pendingOrder.DropoffAddress,
+			"distance_km":     pendingOrder.DistanceKm,
+			"fare_amount":     pendingOrder.FareAmount,
+			"vehicle_type":    pendingOrder.VehicleType,
+			"service_type":    pendingOrder.ServiceType,
+			"payment_method":  pendingOrder.PaymentMethod,
+			"rider_id":        pendingOrder.RiderID,
+			"rider_name":      riderName,
+			"rider_phone":     riderPhone,
+			"expires_at":      expiresAt,
+		})
+		if err == nil {
+			time.Sleep(150 * time.Millisecond)
+			hub.SendToUser(userID, ws.Message{
+				Type:    "incoming_order",
+				Payload: json.RawMessage(offerPayload),
+			})
+		}
+	}
+
 	// Koneksi yang putus memadamkan status online driver, sehingga driver yang
 	// menutup aplikasi langsung berhenti ditawari order.
 	hub.OnDisconnect = func(userID uint, role string) {

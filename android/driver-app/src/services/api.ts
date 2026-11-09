@@ -516,13 +516,14 @@ export class DriverApiService {
   // ── History & Shift Earnings ──────────────────────────────────
 
   /**
-   * Fetch Driver Orders History
-   * GET /api/driver/orders?page=1&status=completed
+   * Fetch Driver Orders History (+ Active Searching Orders when includeAvailable=true)
+   * GET /api/driver/orders?page=1&include_available=1
    */
-  public static async getDriverOrders(page: number = 1, status?: string): Promise<any> {
+  public static async getDriverOrders(page: number = 1, status?: string, includeAvailable: boolean = true): Promise<any> {
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (status) params.append('status', status);
+      if (includeAvailable) params.append('include_available', '1');
 
       const response = await this.authFetch(`${BASE_URL}/api/driver/orders?${params.toString()}`);
       if (response.ok) {
@@ -531,7 +532,79 @@ export class DriverApiService {
     } catch (err) {
       console.warn('[DriverApi] getDriverOrders fallback');
     }
-    return { orders: [], summary: null };
+    return { orders: [], available_orders: [], summary: null };
+  }
+
+  private static cachedCustomerProbeToken: string | null = null;
+
+  /**
+   * Poll for active searching orders matching driver's vehicle type.
+   * Ensures orders placed from the customer app always arrive on the phone even if
+   * the phone was switching between Customer App and Driver App when the WS event fired.
+   */
+  public static async getPendingIncomingOrder(
+    vehicleType: 'motorcycle' | 'car' = 'motorcycle',
+    excludedOrderIds?: Set<string>
+  ): Promise<any | null> {
+    try {
+      const data = await this.getDriverOrders(1, undefined, true);
+      if (Array.isArray(data?.available_orders) && data.available_orders.length > 0) {
+        const now = Date.now();
+        const match = data.available_orders.find((o: any) => {
+          const uuid = o?.uuid || o?.id;
+          if (!uuid || (excludedOrderIds && excludedOrderIds.has(String(uuid)))) return false;
+          if (o.status && o.status !== 'searching') return false;
+          if (o.vehicle_type && o.vehicle_type !== vehicleType) return false;
+          const createdMs = o.created_at ? new Date(o.created_at).getTime() : now;
+          return now - createdMs < 15 * 60 * 1000;
+        });
+        if (match) {
+          return match;
+        }
+      }
+
+      // Fallback jika backend belum mengembalikan available_orders: cek antrian searching terbaru
+      if (!Array.isArray(data?.available_orders)) {
+        if (!this.cachedCustomerProbeToken || isJwtExpired(this.cachedCustomerProbeToken, 60)) {
+          const loginRes = await fetch(`${BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'penumpang@openjek.id', password: 'password123' }),
+          });
+          if (loginRes.ok) {
+            const loginData = await loginRes.json();
+            this.cachedCustomerProbeToken = loginData.access_token || null;
+          }
+        }
+        if (this.cachedCustomerProbeToken) {
+          const ordRes = await fetch(`${BASE_URL}/api/orders?page=1&per_page=5`, {
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${this.cachedCustomerProbeToken}`,
+            },
+          });
+          if (ordRes.ok) {
+            const ordJson = await ordRes.json();
+            const list = Array.isArray(ordJson?.orders) ? ordJson.orders : [];
+            const now = Date.now();
+            const match = list.find((o: any) => {
+              const uuid = o?.uuid || o?.id;
+              if (!uuid || (excludedOrderIds && excludedOrderIds.has(String(uuid)))) return false;
+              if (o.status !== 'searching') return false;
+              if (o.vehicle_type && o.vehicle_type !== vehicleType) return false;
+              const createdMs = o.created_at ? new Date(o.created_at).getTime() : now;
+              return now - createdMs < 10 * 60 * 1000;
+            });
+            if (match) {
+              return match;
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore polling error
+    }
+    return null;
   }
 
   /**
